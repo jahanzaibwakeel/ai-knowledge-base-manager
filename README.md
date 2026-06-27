@@ -16,6 +16,7 @@ A production-style full-stack knowledge base app with FastAPI, Next.js, MongoDB,
 - Workspace members with `owner`, `editor`, and `viewer` roles
 - Original upload retention through a configurable file storage directory
 - Request IDs, basic in-memory rate limiting, readiness checks, and document version restore
+- Lightweight `/metrics` and `/metrics.json` observability endpoints
 - Paginated document lists, filtered keyword search, soft archive/restore, and JSON export endpoints
 - MongoDB text indexes for global keyword search
 - Responsive Next.js dashboard and document detail pages
@@ -250,6 +251,13 @@ The backend uses a service/repository pattern: route handlers validate ownership
 - `POST /api/v1/rag/query`
 - `GET /api/v1/workspaces/{workspace_id}/members`
 - `POST /api/v1/workspaces/{workspace_id}/members`
+
+Operational endpoints:
+
+- `GET /health`
+- `GET /ready`
+- `GET /metrics`
+- `GET /metrics.json`
 
 ## Production Notes
 

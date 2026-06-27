@@ -2,10 +2,11 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, PlainTextResponse
 
 from app.api.routes import auth, collections, dashboard, documents, rag, workspaces
 from app.core.config import get_settings
+from app.core.metrics import request_metrics
 from app.core.middleware import InMemoryRateLimitMiddleware, RequestContextMiddleware
 from app.db.mongo import close_mongo_connection, connect_to_mongo, get_database
 
@@ -45,6 +46,16 @@ async def health() -> dict:
 async def ready() -> dict:
     await get_database().command("ping")
     return {"status": "ready"}
+
+
+@app.get("/metrics")
+async def metrics() -> PlainTextResponse:
+    return PlainTextResponse(request_metrics.prometheus(), media_type="text/plain; version=0.0.4")
+
+
+@app.get("/metrics.json")
+async def metrics_json() -> dict:
+    return request_metrics.snapshot()
 
 
 app.include_router(auth.router, prefix=settings.api_prefix)
