@@ -16,3 +16,4 @@ uploads/
 model-cache/
 .cache/
 *.log
+backups/

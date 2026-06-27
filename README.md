@@ -201,6 +201,7 @@ Use `NEXT_PUBLIC_API_URL=http://localhost:8000/api/v1` for local frontend develo
 
 - Docker Compose includes healthchecks for MongoDB, backend readiness, frontend availability, and Ollama.
 - Docker Compose includes persistent volumes for MongoDB data, uploaded files, Ollama models, and local Hugging Face/FastEmbed model cache.
+- PowerShell operations scripts provide Docker-based MongoDB/upload backup and restore.
 - Backend startup waits for MongoDB health before serving the API.
 - Frontend startup waits for backend readiness.
 - CI validates `docker compose config`, builds the backend image, runs backend tests in Docker, then runs frontend typecheck, lint, build, and Playwright E2E.

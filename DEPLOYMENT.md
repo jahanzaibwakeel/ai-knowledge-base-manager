@@ -56,6 +56,22 @@ Docker Compose defines persistent volumes for:
 
 Do not delete these volumes during upgrades unless you intentionally want to remove stored data or downloaded models.
 
+## Backups
+
+Create a timestamped backup of MongoDB data and uploaded files:
+
+```powershell
+.\scripts\backup.ps1
+```
+
+Restore from a backup:
+
+```powershell
+.\scripts\restore.ps1 -BackupDir backups\YYYYMMDD-HHMMSS -ConfirmRestore
+```
+
+Restore is destructive: it drops MongoDB collections and replaces uploaded files. See `scripts/README.md` for volume-name options.
+
 ## Production Notes
 
 - Put the frontend behind HTTPS.
