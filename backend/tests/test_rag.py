@@ -43,6 +43,9 @@ class RAGTests(unittest.TestCase):
 
 class RAGEvaluationTests(unittest.IsolatedAsyncioTestCase):
     async def test_chunks_for_document_embeds_and_keeps_citations(self):
+        previous_provider = os.environ.get("EMBEDDING_PROVIDER")
+        os.environ["EMBEDDING_PROVIDER"] = "local"
+        get_settings.cache_clear()
         document = {
             "content": "Alpha strategy\n\nBeta execution",
             "content_segments": [
@@ -51,7 +54,14 @@ class RAGEvaluationTests(unittest.IsolatedAsyncioTestCase):
             ],
         }
 
-        chunks = await chunks_for_document(document)
+        try:
+            chunks = await chunks_for_document(document)
+        finally:
+            if previous_provider is None:
+                os.environ.pop("EMBEDDING_PROVIDER", None)
+            else:
+                os.environ["EMBEDDING_PROVIDER"] = previous_provider
+            get_settings.cache_clear()
 
         self.assertEqual(chunks[0]["source_refs"][0]["label"], "paragraph 1")
         self.assertIn("embedding", chunks[0])

@@ -17,6 +17,7 @@ A production-style full-stack knowledge base app with FastAPI, Next.js, MongoDB,
 - Original upload retention through a configurable file storage directory
 - Request IDs, basic in-memory rate limiting, readiness checks, and document version restore
 - Lightweight `/metrics` and `/metrics.json` observability endpoints
+- Zero-cost safety mode blocks paid OpenAI calls by default
 - Paginated document lists, filtered keyword search, soft archive/restore, and JSON export endpoints
 - MongoDB text indexes for global keyword search
 - Responsive Next.js dashboard and document detail pages
@@ -61,6 +62,7 @@ Uploaded source files are retained under `FILE_STORAGE_DIR` and mounted as a Doc
 By default, the app uses local embeddings so there is no API bill:
 
 ```bash
+ZERO_COST_MODE=true
 AI_PROVIDER=local
 EMBEDDING_PROVIDER=fastembed
 FASTEMBED_MODEL=sentence-transformers/all-MiniLM-L6-v2
@@ -109,6 +111,7 @@ docker compose exec ollama ollama pull llama3.1
 To use OpenAI instead, set these in `.env`:
 
 ```bash
+ZERO_COST_MODE=false
 AI_PROVIDER=openai
 OPENAI_API_KEY=sk-...
 OPENAI_MODEL=gpt-4o-mini
@@ -144,6 +147,7 @@ OPENAI_API_KEY=sk-...
 ```
 
 OpenAI embeddings are usage-billed by tokens. Leave `OPENAI_API_KEY` empty if you want zero billing risk.
+When `ZERO_COST_MODE=true`, the backend will not call OpenAI even if `AI_PROVIDER=openai` or `EMBEDDING_PROVIDER=openai` is accidentally configured.
 
 ## Local Development
 
@@ -259,6 +263,7 @@ Operational endpoints:
 - `GET /ready`
 - `GET /metrics`
 - `GET /metrics.json`
+- `GET /safety`
 
 ## Production Notes
 

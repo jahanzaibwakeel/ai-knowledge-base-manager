@@ -5,6 +5,7 @@
 The default configuration avoids paid hosted AI APIs:
 
 ```env
+ZERO_COST_MODE=true
 AI_PROVIDER=local
 EMBEDDING_PROVIDER=fastembed
 FASTEMBED_MODEL=sentence-transformers/all-MiniLM-L6-v2
@@ -12,6 +13,7 @@ OPENAI_API_KEY=
 ```
 
 This uses local semantic embeddings with FastEmbed. It may download model files once on the server, but it does not call a paid inference API.
+With `ZERO_COST_MODE=true`, accidental OpenAI configuration is blocked at runtime.
 
 ## Server Setup
 
@@ -79,4 +81,5 @@ Restore is destructive: it drops MongoDB collections and replaces uploaded files
 - Use MongoDB Atlas or a secured MongoDB server for production data.
 - Use external object storage for large uploaded files if server disk is limited.
 - Keep `OPENAI_API_KEY` empty for zero billing risk.
+- Keep `ZERO_COST_MODE=true` unless you intentionally want paid hosted AI calls.
 - Monitor disk usage for uploaded files and model cache.

@@ -13,6 +13,8 @@ SYSTEM_PROMPT = """Return compact JSON with keys: summary (string), key_points (
 class AIService:
     async def analyze(self, title: str, content: str) -> dict:
         settings = get_settings()
+        if settings.paid_ai_blocked():
+            return self._fallback(content)
         if settings.ai_provider.lower() == "openai" and settings.openai_api_key:
             return await self._openai(title, content)
         if settings.ai_provider.lower() == "ollama":

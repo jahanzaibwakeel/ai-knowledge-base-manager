@@ -58,6 +58,11 @@ async def metrics_json() -> dict:
     return request_metrics.snapshot()
 
 
+@app.get("/safety")
+async def safety() -> dict:
+    return get_settings().safety_snapshot()
+
+
 app.include_router(auth.router, prefix=settings.api_prefix)
 app.include_router(workspaces.router, prefix=settings.api_prefix)
 app.include_router(collections.router, prefix=settings.api_prefix)

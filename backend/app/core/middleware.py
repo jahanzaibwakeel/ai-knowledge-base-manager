@@ -46,7 +46,7 @@ class InMemoryRateLimitMiddleware(BaseHTTPMiddleware):
         self.requests: dict[str, deque[float]] = defaultdict(deque)
 
     async def dispatch(self, request: Request, call_next: RequestResponseEndpoint) -> Response:
-        if request.url.path in {"/health", "/ready", "/metrics", "/metrics.json"}:
+        if request.url.path in {"/health", "/ready", "/metrics", "/metrics.json", "/safety"}:
             return await call_next(request)
         settings = get_settings()
         now = time.time()

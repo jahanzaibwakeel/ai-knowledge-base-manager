@@ -29,7 +29,7 @@ class EmbeddingService:
     async def embed(self, text: str) -> list[float]:
         settings = get_settings()
         provider = settings.embedding_provider.lower()
-        if provider == "openai" and settings.openai_api_key:
+        if provider == "openai" and settings.openai_api_key and not settings.paid_embeddings_blocked():
             return await self._openai(text)
         if provider == "fastembed":
             return (await self._fastembed_many([text]))[0]
@@ -40,7 +40,7 @@ class EmbeddingService:
     async def embed_many(self, texts: list[str]) -> list[list[float]]:
         settings = get_settings()
         provider = settings.embedding_provider.lower()
-        if provider == "openai" and settings.openai_api_key and texts:
+        if provider == "openai" and settings.openai_api_key and texts and not settings.paid_embeddings_blocked():
             return await self._openai_many(texts)
         if provider == "fastembed" and texts:
             return await self._fastembed_many(texts)
