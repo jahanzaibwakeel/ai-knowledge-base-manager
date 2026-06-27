@@ -1,0 +1,90 @@
+import { AnalysisJob, Dashboard, DocumentItem, DocumentVersion, Paginated, RAGAnswer, User, Workspace, WorkspaceMember } from "./types";
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
+const TOKEN_KEY = "kbm_token";
+
+export function getToken() {
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem(TOKEN_KEY);
+}
+
+export function setToken(token: string) {
+  localStorage.setItem(TOKEN_KEY, token);
+}
+
+export function clearToken() {
+  localStorage.removeItem(TOKEN_KEY);
+}
+
+async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
+  const token = getToken();
+  const headers = new Headers(options.headers);
+  if (!(options.body instanceof FormData)) headers.set("Content-Type", "application/json");
+  if (token) headers.set("Authorization", `Bearer ${token}`);
+  const response = await fetch(`${API_URL}${path}`, { ...options, headers });
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({ detail: "Request failed" }));
+    throw new Error(error.detail ?? "Request failed");
+  }
+  if (response.status === 204) return undefined as T;
+  return response.json();
+}
+
+export function downloadJson(filename: string, payload: unknown) {
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  anchor.click();
+  URL.revokeObjectURL(url);
+}
+
+export const api = {
+  login: (email: string, password: string) =>
+    request<{ access_token: string; user: User }>("/auth/login", {
+      method: "POST",
+      body: JSON.stringify({ email, password })
+    }),
+  register: (name: string, email: string, password: string) =>
+    request<{ access_token: string; user: User }>("/auth/register", {
+      method: "POST",
+      body: JSON.stringify({ name, email, password })
+    }),
+  me: () => request<User>("/auth/me"),
+  dashboard: () => request<Dashboard>("/dashboard"),
+  workspaces: () => request<Workspace[]>("/workspaces"),
+  createWorkspace: (name: string, description: string) =>
+    request<Workspace>("/workspaces", { method: "POST", body: JSON.stringify({ name, description }) }),
+  updateWorkspace: (id: string, payload: { name?: string; description?: string }) =>
+    request<Workspace>(`/workspaces/${id}`, { method: "PATCH", body: JSON.stringify(payload) }),
+  exportWorkspace: (id: string) => request(`/workspaces/${id}/export`),
+  createCollection: (workspace_id: string, name: string) =>
+    request("/collections", { method: "POST", body: JSON.stringify({ workspace_id, name }) }),
+  createNote: (payload: { workspace_id: string; title: string; content: string; tags: string[]; collection_ids: string[] }) =>
+    request<DocumentItem>("/documents/notes", { method: "POST", body: JSON.stringify(payload) }),
+  uploadDocument: (form: FormData) => request<DocumentItem>("/documents/upload", { method: "POST", body: form }),
+  document: (id: string) => request<DocumentItem>(`/documents/${id}`),
+  search: async (q: string) => {
+    const result = await request<Paginated<DocumentItem>>(`/dashboard/search?q=${encodeURIComponent(q)}`);
+    return result.items;
+  },
+  regenerate: (id: string) => request<DocumentItem>(`/documents/${id}/analyze`, { method: "POST" }),
+  archiveDocument: (id: string) => request<void>(`/documents/${id}`, { method: "DELETE" }),
+  restoreDocument: (id: string) => request<DocumentItem>(`/documents/${id}/restore`, { method: "POST" }),
+  exportDocument: (id: string) => request(`/documents/${id}/export`),
+  analysisJobs: (id: string) => request<AnalysisJob[]>(`/documents/${id}/analysis-jobs`),
+  versions: (id: string) => request<DocumentVersion[]>(`/documents/${id}/versions`),
+  restoreVersion: (id: string, version: number) =>
+    request<DocumentItem>(`/documents/${id}/versions/${version}/restore`, { method: "POST" }),
+  members: (workspaceId: string) => request<WorkspaceMember[]>(`/workspaces/${workspaceId}/members`),
+  addMember: (workspaceId: string, email: string, role: WorkspaceMember["role"]) =>
+    request<WorkspaceMember>(`/workspaces/${workspaceId}/members`, {
+      method: "POST",
+      body: JSON.stringify({ email, role })
+    }),
+  workspaceDocuments: (workspaceId: string, includeArchived = false) =>
+    request<Paginated<DocumentItem>>(`/workspaces/${workspaceId}/documents?include_archived=${includeArchived}`),
+  ask: (query: string, limit = 5) =>
+    request<RAGAnswer>("/rag/query", { method: "POST", body: JSON.stringify({ query, limit }) })
+};
