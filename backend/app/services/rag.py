@@ -136,6 +136,7 @@ class RAGService:
         citations = [
             {
                 "document_id": chunk["document_id"],
+                "workspace_id": chunk["workspace_id"],
                 "document_title": chunk["document_title"],
                 "chunk_index": chunk["chunk_index"],
                 "source_refs": chunk.get("source_refs", []),

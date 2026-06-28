@@ -43,6 +43,8 @@ async def create_indexes(db: AsyncIOMotorDatabase) -> None:
     await db.activities.create_index([("workspace_id", 1), ("created_at", -1)])
     await db.analysis_jobs.create_index([("workspace_id", 1), ("created_at", -1)])
     await db.analysis_jobs.create_index([("document_id", 1), ("status", 1)])
+    await db.rag_feedback.create_index([("user_id", 1), ("created_at", -1)])
+    await db.rag_feedback.create_index([("workspace_ids", 1), ("rating", 1)])
     await db.document_chunks.create_index([("workspace_id", 1), ("document_id", 1)])
     await db.document_chunks.create_index(
         [("text", "text"), ("document_title", "text"), ("tags", "text")],

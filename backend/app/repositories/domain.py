@@ -229,3 +229,21 @@ class AnalysisJobRepository(MongoRepository):
     async def list_for_document(self, document_id: str, limit: int = 10) -> list[dict]:
         cursor = self.collection.find({"document_id": document_id}).sort("created_at", -1).limit(limit)
         return [serialize(doc) async for doc in cursor]
+
+
+class RAGFeedbackRepository(MongoRepository):
+    def __init__(self, db: AsyncIOMotorDatabase):
+        super().__init__(db.rag_feedback)
+
+    async def summary_for_workspaces(self, workspace_ids: list[str]) -> dict:
+        if not workspace_ids:
+            return {"helpful": 0, "not_helpful": 0, "total": 0}
+        pipeline = [
+            {"$match": {"workspace_ids": {"$in": workspace_ids}}},
+            {"$group": {"_id": "$rating", "count": {"$sum": 1}}},
+        ]
+        counts = {"helpful": 0, "not_helpful": 0}
+        async for row in self.collection.aggregate(pipeline):
+            if row["_id"] in counts:
+                counts[row["_id"]] = row["count"]
+        return {**counts, "total": counts["helpful"] + counts["not_helpful"]}

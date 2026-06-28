@@ -3,7 +3,7 @@ from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app.api.deps import current_user, get_db
 from app.api.routes.workspaces import accessible_workspaces
-from app.repositories.domain import ActivityRepository, CollectionRepository, DocumentRepository, WorkspaceRepository
+from app.repositories.domain import ActivityRepository, CollectionRepository, DocumentRepository, RAGFeedbackRepository
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
@@ -38,6 +38,7 @@ async def dashboard(user: dict = Depends(current_user), db: AsyncIOMotorDatabase
         "recent_documents": recent_documents,
         "insights": insights,
         "activity": sorted(activity, key=lambda item: item["created_at"], reverse=True)[:15],
+        "rag_feedback": await RAGFeedbackRepository(db).summary_for_workspaces(workspace_ids),
     }
 
 

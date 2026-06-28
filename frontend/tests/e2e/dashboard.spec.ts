@@ -80,7 +80,7 @@ test.beforeEach(async ({ page }) => {
       if (url.includes("/api/v1/rag/query/stream")) {
         const body = [
           'event: status\ndata: {"message":"retrieving"}\n\n',
-          'event: citations\ndata: {"citations":[{"document_id":"doc-1","document_title":"MongoDB Atlas Notes","chunk_index":0,"text":"Atlas can host MongoDB for production knowledge bases."}]}\n\n',
+          'event: citations\ndata: {"citations":[{"document_id":"doc-1","workspace_id":"workspace-1","document_title":"MongoDB Atlas Notes","chunk_index":0,"text":"Atlas can host MongoDB for production knowledge bases."}]}\n\n',
           'event: token\ndata: {"text":"Use MongoDB Atlas by setting MONGO_URI "}\n\n',
           'event: token\ndata: {"text":"to your cluster connection string."}\n\n',
           'event: done\ndata: {"answer":"Use MongoDB Atlas by setting MONGO_URI to your cluster connection string."}\n\n'
@@ -90,6 +90,7 @@ test.beforeEach(async ({ page }) => {
       if (url.includes("/api/v1/rag/query")) {
         return json({ answer: "Use MongoDB Atlas by setting MONGO_URI to your cluster connection string.", citations: [] });
       }
+      if (url.includes("/api/v1/rag/feedback")) return json({ id: "feedback-1", rating: "helpful" });
       return originalFetch(input, init);
     };
   }, { dashboard });
@@ -121,7 +122,7 @@ test.beforeEach(async ({ page }) => {
     if (url.endsWith("/rag/query/stream")) {
       const body = [
         'event: status\ndata: {"message":"retrieving"}\n\n',
-        'event: citations\ndata: {"citations":[{"document_id":"doc-1","document_title":"MongoDB Atlas Notes","chunk_index":0,"text":"Atlas can host MongoDB for production knowledge bases."}]}\n\n',
+        'event: citations\ndata: {"citations":[{"document_id":"doc-1","workspace_id":"workspace-1","document_title":"MongoDB Atlas Notes","chunk_index":0,"text":"Atlas can host MongoDB for production knowledge bases."}]}\n\n',
         'event: token\ndata: {"text":"Use MongoDB Atlas by setting MONGO_URI "}\n\n',
         'event: token\ndata: {"text":"to your cluster connection string."}\n\n',
         'event: done\ndata: {"answer":"Use MongoDB Atlas by setting MONGO_URI to your cluster connection string."}\n\n'
@@ -143,6 +144,9 @@ test.beforeEach(async ({ page }) => {
         ]
       }
       });
+    }
+    if (url.endsWith("/rag/feedback")) {
+      return route.fulfill({ status: 201, headers, json: { id: "feedback-1", rating: "helpful" } });
     }
     return route.fulfill({ status: 404, headers, json: { detail: "Not mocked" } });
   });
@@ -180,4 +184,6 @@ test("dashboard renders documents, search, and RAG citations", async ({ page }) 
 
   await expect(page.getByText("Use MongoDB Atlas by setting MONGO_URI")).toBeVisible();
   await expect(page.getByRole("link", { name: /MongoDB Atlas Notes Atlas can/ })).toBeVisible();
+  await page.getByRole("button", { name: "Helpful", exact: true }).click();
+  await expect(page.getByText("Marked helpful")).toBeVisible();
 });

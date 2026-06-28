@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { FilePlus2, FolderPlus, Library, Plus, Search, Settings, Upload } from "lucide-react";
+import { FilePlus2, FolderPlus, Library, Plus, Search, Settings, ThumbsDown, ThumbsUp, Upload } from "lucide-react";
 import { Shell } from "@/components/Shell";
 import { api } from "@/lib/api";
 import { Dashboard, DocumentItem, RAGAnswer } from "@/lib/types";
@@ -28,6 +28,7 @@ export default function DashboardPage() {
   const [askQuery, setAskQuery] = useState("");
   const [ragAnswer, setRagAnswer] = useState<RAGAnswer | null>(null);
   const [ragStatus, setRagStatus] = useState("");
+  const [feedbackStatus, setFeedbackStatus] = useState("");
   const [selectedWorkspace, setSelectedWorkspace] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -142,6 +143,14 @@ export default function DashboardPage() {
     }
   }
 
+  async function sendFeedback(rating: "helpful" | "not_helpful") {
+    if (!ragAnswer?.answer || !askQuery.trim()) return;
+    setFeedbackStatus("saving");
+    await api.sendRagFeedback({ query: askQuery, answer: ragAnswer.answer, rating, citations: ragAnswer.citations });
+    setFeedbackStatus(rating === "helpful" ? "Marked helpful" : "Marked not helpful");
+    await load();
+  }
+
   return (
     <Shell>
       <div className="mx-auto max-w-7xl px-4 py-6">
@@ -170,6 +179,11 @@ export default function DashboardPage() {
               <Stat icon={<FolderPlus size={18} />} label="Collections" value={data?.collections.length ?? 0} />
               <Stat icon={<FilePlus2 size={18} />} label="Documents" value={data?.recent_documents.length ?? 0} />
             </div>
+            {data?.rag_feedback && data.rag_feedback.total > 0 && (
+              <p className="mt-3 rounded-lg bg-skyglass px-3 py-2 text-sm text-black/70">
+                RAG feedback: {data.rag_feedback.helpful} helpful, {data.rag_feedback.not_helpful} not helpful
+              </p>
+            )}
             <label className="mt-5 flex items-center gap-2 rounded-lg border border-black/10 bg-white px-3 py-2">
               <Search size={18} className="text-black/50" />
               <input id="global-search" className="w-full outline-none" placeholder="Search notes, documents, summaries, and tags" value={search} onChange={(event) => setSearch(event.target.value)} />
@@ -218,9 +232,22 @@ export default function DashboardPage() {
           {ragStatus && <p className="mt-3 text-sm font-medium uppercase text-black/50">{ragStatus}</p>}
           {ragAnswer && (
             <div className="mt-4 grid gap-4 lg:grid-cols-[1fr_0.8fr]">
-              <p className="min-h-24 rounded-lg bg-mint/50 p-4 leading-7 text-black/75">
-                {ragAnswer.answer || "Preparing answer..."}
-              </p>
+              <div>
+                <p className="min-h-24 rounded-lg bg-mint/50 p-4 leading-7 text-black/75">
+                  {ragAnswer.answer || "Preparing answer..."}
+                </p>
+                {ragAnswer.answer && !ragStatus && (
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                    <button className="focus-ring inline-flex items-center gap-2 rounded-lg border border-black/10 px-3 py-2 text-sm font-semibold text-ink" onClick={() => sendFeedback("helpful")}>
+                      <ThumbsUp size={16} />Helpful
+                    </button>
+                    <button className="focus-ring inline-flex items-center gap-2 rounded-lg border border-black/10 px-3 py-2 text-sm font-semibold text-ink" onClick={() => sendFeedback("not_helpful")}>
+                      <ThumbsDown size={16} />Not helpful
+                    </button>
+                    {feedbackStatus && <span className="text-sm font-medium text-black/55">{feedbackStatus}</span>}
+                  </div>
+                )}
+              </div>
               <div className="space-y-2">
                 {ragAnswer.citations.map((citation) => (
                   <Link

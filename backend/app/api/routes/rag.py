@@ -9,6 +9,8 @@ from motor.motor_asyncio import AsyncIOMotorDatabase
 from pydantic import BaseModel, Field
 
 from app.api.deps import current_user, get_db
+from app.api.routes.workspaces import accessible_workspaces
+from app.repositories.domain import RAGFeedbackRepository
 from app.services.rag import RAGService
 
 router = APIRouter(prefix="/rag", tags=["rag"])
@@ -17,6 +19,14 @@ router = APIRouter(prefix="/rag", tags=["rag"])
 class RAGQuery(BaseModel):
     query: str = Field(min_length=2, max_length=500)
     limit: int = Field(default=5, ge=1, le=10)
+
+
+class RAGFeedback(BaseModel):
+    query: str = Field(min_length=2, max_length=500)
+    answer: str = Field(min_length=1, max_length=5000)
+    rating: str = Field(pattern="^(helpful|not_helpful)$")
+    comment: str | None = Field(default=None, max_length=1000)
+    citations: list[dict] = Field(default_factory=list)
 
 
 @router.post("/query")
@@ -61,3 +71,32 @@ async def stream_knowledge_base_query(
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
+
+
+@router.post("/feedback", status_code=201)
+async def record_rag_feedback(
+    payload: RAGFeedback,
+    user: dict = Depends(current_user),
+    db: AsyncIOMotorDatabase = Depends(get_db),
+) -> dict:
+    workspaces = await accessible_workspaces(db, user["id"])
+    workspace_ids = [workspace["id"] for workspace in workspaces]
+    citation_workspace_ids = sorted(
+        {
+            citation.get("workspace_id")
+            for citation in payload.citations
+            if citation.get("workspace_id") in workspace_ids
+        }
+    )
+    feedback = await RAGFeedbackRepository(db).create(
+        {
+            "user_id": user["id"],
+            "workspace_ids": citation_workspace_ids or workspace_ids,
+            "query": payload.query,
+            "answer": payload.answer,
+            "rating": payload.rating,
+            "comment": payload.comment,
+            "citations": payload.citations[:10],
+        }
+    )
+    return feedback

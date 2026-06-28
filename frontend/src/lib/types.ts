@@ -56,12 +56,14 @@ export type Dashboard = {
     action_items: string[];
   }>;
   activity: Array<{ id: string; action: string; message: string; created_at: string }>;
+  rag_feedback?: { helpful: number; not_helpful: number; total: number };
 };
 
 export type RAGAnswer = {
   answer: string;
   citations: Array<{
     document_id: string;
+    workspace_id?: string;
     document_title: string;
     chunk_index: number;
     source_refs?: Array<{ label?: string; page_number?: number | null; paragraph_index?: number }>;

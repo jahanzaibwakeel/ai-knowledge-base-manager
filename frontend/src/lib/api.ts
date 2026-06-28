@@ -147,6 +147,8 @@ export const api = {
     request<RAGAnswer>("/rag/query", { method: "POST", body: JSON.stringify({ query, limit }) }),
   askStream: (query: string, handlers: RAGStreamHandlers, limit = 5) =>
     streamRequest("/rag/query/stream", { query, limit }, handlers),
+  sendRagFeedback: (payload: { query: string; answer: string; rating: "helpful" | "not_helpful"; comment?: string; citations: RAGAnswer["citations"] }) =>
+    request("/rag/feedback", { method: "POST", body: JSON.stringify(payload) }),
   health: () => rootRequest<{ status: string }>("/health"),
   ready: () => rootRequest<{ status: string }>("/ready"),
   safety: () => rootRequest<SafetyStatus>("/safety"),
