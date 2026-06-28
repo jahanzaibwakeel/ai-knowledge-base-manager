@@ -23,6 +23,7 @@ A production-style full-stack knowledge base app with FastAPI, Next.js, MongoDB,
 - Paginated document lists, filtered keyword search, soft archive/restore, and JSON export endpoints
 - MongoDB text indexes for global keyword search
 - Responsive Next.js dashboard and document detail pages
+- System status page for health, readiness, safety, and request metrics
 - Docker Compose for frontend, backend, MongoDB, and Ollama
 
 ## Quick Start

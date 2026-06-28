@@ -1,6 +1,7 @@
 "use client";
 
-import { BrainCircuit, LogOut, Search } from "lucide-react";
+import Link from "next/link";
+import { Activity, BrainCircuit, LogOut, Search } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { clearToken } from "@/lib/api";
 
@@ -20,6 +21,13 @@ export function Shell({ children }: { children: React.ReactNode }) {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <Link
+              className="focus-ring grid h-10 w-10 place-items-center rounded-lg border border-black/10 bg-white text-ink"
+              title="System status"
+              href="/system"
+            >
+              <Activity size={18} />
+            </Link>
             <button
               className="focus-ring grid h-10 w-10 place-items-center rounded-lg border border-black/10 bg-white text-ink"
               title="Search"

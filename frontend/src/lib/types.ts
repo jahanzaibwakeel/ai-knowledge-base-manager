@@ -100,3 +100,24 @@ export type DocumentVersion = {
   created_at: string;
   updated_at: string;
 };
+
+export type SafetyStatus = {
+  zero_cost_mode: boolean;
+  ai_provider: string;
+  embedding_provider: string;
+  openai_key_configured: boolean;
+  paid_ai_blocked: boolean;
+  paid_embeddings_blocked: boolean;
+  billing_risk: boolean;
+};
+
+export type MetricsStatus = {
+  uptime_seconds: number;
+  total_requests: number;
+  in_flight: number;
+  average_latency_ms: number;
+  status_counts: Record<string, number>;
+  method_counts: Record<string, number>;
+  path_counts: Record<string, number>;
+  recent_errors: Array<{ method: string; path: string; status_code: number; elapsed_ms: number; timestamp: number }>;
+};

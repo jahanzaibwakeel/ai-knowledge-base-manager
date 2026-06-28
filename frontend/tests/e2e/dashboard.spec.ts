@@ -43,6 +43,31 @@ test.beforeEach(async ({ page }) => {
           status: 200,
           headers: { "content-type": "application/json" }
         });
+      if (url.endsWith("/health")) return json({ status: "ok" });
+      if (url.endsWith("/ready")) return json({ status: "ready" });
+      if (url.endsWith("/safety")) {
+        return json({
+          zero_cost_mode: true,
+          ai_provider: "local",
+          embedding_provider: "fastembed",
+          openai_key_configured: false,
+          paid_ai_blocked: false,
+          paid_embeddings_blocked: false,
+          billing_risk: false
+        });
+      }
+      if (url.endsWith("/metrics.json")) {
+        return json({
+          uptime_seconds: 125,
+          total_requests: 42,
+          in_flight: 1,
+          average_latency_ms: 14.5,
+          status_counts: { "2xx": 42 },
+          method_counts: { GET: 30, POST: 12 },
+          path_counts: { "/api/v1/dashboard": 8 },
+          recent_errors: []
+        });
+      }
       if (url.includes("/api/v1/dashboard/search")) return json({ items: dashboard.recent_documents, limit: 25, offset: 0 });
       if (url.includes("/api/v1/dashboard")) return json(dashboard);
       if (url.endsWith("/api/v1/workspaces")) return json(dashboard.workspaces);
@@ -121,6 +146,17 @@ test.beforeEach(async ({ page }) => {
     }
     return route.fulfill({ status: 404, headers, json: { detail: "Not mocked" } });
   });
+});
+
+test("system status page shows operational safety and metrics", async ({ page }) => {
+  await page.goto("/system");
+
+  await expect(page.getByRole("heading", { name: "System status" })).toBeVisible();
+  await expect(page.getByText("API ready")).toBeVisible();
+  await expect(page.getByText("Zero-cost safe")).toBeVisible();
+  await expect(page.getByText("No OpenAI key")).toBeVisible();
+  await expect(page.getByText("42")).toBeVisible();
+  await expect(page.getByText("No recent 500-level errors.")).toBeVisible();
 });
 
 test("dashboard renders documents, search, and RAG citations", async ({ page }) => {

@@ -1,6 +1,7 @@
-import { AnalysisJob, Dashboard, DocumentItem, DocumentVersion, Paginated, RAGAnswer, User, Workspace, WorkspaceMember } from "./types";
+import { AnalysisJob, Dashboard, DocumentItem, DocumentVersion, MetricsStatus, Paginated, RAGAnswer, SafetyStatus, User, Workspace, WorkspaceMember } from "./types";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
+const ROOT_API_URL = API_URL.replace(/\/api\/v1\/?$/, "");
 const TOKEN_KEY = "kbm_token";
 
 export function getToken() {
@@ -27,6 +28,12 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     throw new Error(error.detail ?? "Request failed");
   }
   if (response.status === 204) return undefined as T;
+  return response.json();
+}
+
+async function rootRequest<T>(path: string): Promise<T> {
+  const response = await fetch(`${ROOT_API_URL}${path}`);
+  if (!response.ok) throw new Error("System status request failed");
   return response.json();
 }
 
@@ -139,5 +146,9 @@ export const api = {
   ask: (query: string, limit = 5) =>
     request<RAGAnswer>("/rag/query", { method: "POST", body: JSON.stringify({ query, limit }) }),
   askStream: (query: string, handlers: RAGStreamHandlers, limit = 5) =>
-    streamRequest("/rag/query/stream", { query, limit }, handlers)
+    streamRequest("/rag/query/stream", { query, limit }, handlers),
+  health: () => rootRequest<{ status: string }>("/health"),
+  ready: () => rootRequest<{ status: string }>("/ready"),
+  safety: () => rootRequest<SafetyStatus>("/safety"),
+  metrics: () => rootRequest<MetricsStatus>("/metrics.json")
 };
