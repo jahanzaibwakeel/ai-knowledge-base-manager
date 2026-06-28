@@ -52,18 +52,18 @@ test.beforeEach(async ({ page }) => {
       if (url.includes("/api/v1/workspaces/workspace-1/documents")) {
         return json({ items: dashboard.recent_documents, total: 1, limit: 25, offset: 0 });
       }
+      if (url.includes("/api/v1/rag/query/stream")) {
+        const body = [
+          'event: status\ndata: {"message":"retrieving"}\n\n',
+          'event: citations\ndata: {"citations":[{"document_id":"doc-1","document_title":"MongoDB Atlas Notes","chunk_index":0,"text":"Atlas can host MongoDB for production knowledge bases."}]}\n\n',
+          'event: token\ndata: {"text":"Use MongoDB Atlas by setting MONGO_URI "}\n\n',
+          'event: token\ndata: {"text":"to your cluster connection string."}\n\n',
+          'event: done\ndata: {"answer":"Use MongoDB Atlas by setting MONGO_URI to your cluster connection string."}\n\n'
+        ].join("");
+        return new Response(body, { status: 200, headers: { "content-type": "text/event-stream" } });
+      }
       if (url.includes("/api/v1/rag/query")) {
-        return json({
-          answer: "Use MongoDB Atlas by setting MONGO_URI to your cluster connection string.",
-          citations: [
-            {
-              document_id: "doc-1",
-              document_title: "MongoDB Atlas Notes",
-              chunk_index: 0,
-              text: "Atlas can host MongoDB for production knowledge bases."
-            }
-          ]
-        });
+        return json({ answer: "Use MongoDB Atlas by setting MONGO_URI to your cluster connection string.", citations: [] });
       }
       return originalFetch(input, init);
     };
@@ -92,6 +92,16 @@ test.beforeEach(async ({ page }) => {
     }
     if (url.includes("/workspaces/workspace-1/documents")) {
       return route.fulfill({ headers, json: { items: dashboard.recent_documents, total: 1, limit: 25, offset: 0 } });
+    }
+    if (url.endsWith("/rag/query/stream")) {
+      const body = [
+        'event: status\ndata: {"message":"retrieving"}\n\n',
+        'event: citations\ndata: {"citations":[{"document_id":"doc-1","document_title":"MongoDB Atlas Notes","chunk_index":0,"text":"Atlas can host MongoDB for production knowledge bases."}]}\n\n',
+        'event: token\ndata: {"text":"Use MongoDB Atlas by setting MONGO_URI "}\n\n',
+        'event: token\ndata: {"text":"to your cluster connection string."}\n\n',
+        'event: done\ndata: {"answer":"Use MongoDB Atlas by setting MONGO_URI to your cluster connection string."}\n\n'
+      ].join("");
+      return route.fulfill({ headers: { ...headers, "content-type": "text/event-stream" }, body });
     }
     if (url.endsWith("/rag/query")) {
       return route.fulfill({

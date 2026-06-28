@@ -11,6 +11,7 @@ A production-style full-stack knowledge base app with FastAPI, Next.js, MongoDB,
 - Tags, collection organization, metadata, and activity timeline
 - AI summaries, key points, and action items
 - RAG-style knowledge base Q&A with document chunk citations and page/paragraph references
+- Streaming RAG answers over Server-Sent Events
 - Configurable embeddings: local ONNX/Hugging Face embeddings by default, deterministic local hash fallback, full Sentence Transformers optional, or OpenAI embeddings if enabled
 - Background AI/RAG analysis jobs with document status tracking
 - Workspace members with `owner`, `editor`, and `viewer` roles
@@ -256,6 +257,7 @@ The backend uses a service/repository pattern: route handlers validate ownership
 - `GET /api/v1/documents/{document_id}/versions`
 - `POST /api/v1/documents/{document_id}/versions/{version}/restore`
 - `POST /api/v1/rag/query`
+- `POST /api/v1/rag/query/stream`
 - `GET /api/v1/workspaces/{workspace_id}/members`
 - `POST /api/v1/workspaces/{workspace_id}/members`
 

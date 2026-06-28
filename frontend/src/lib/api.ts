@@ -30,6 +30,57 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   return response.json();
 }
 
+type RAGStreamHandlers = {
+  onStatus?: (message: string) => void;
+  onCitations?: (citations: RAGAnswer["citations"]) => void;
+  onToken?: (text: string) => void;
+};
+
+async function streamRequest(path: string, body: unknown, handlers: RAGStreamHandlers): Promise<RAGAnswer> {
+  const token = getToken();
+  const headers = new Headers({ "Content-Type": "application/json" });
+  if (token) headers.set("Authorization", `Bearer ${token}`);
+  const response = await fetch(`${API_URL}${path}`, { method: "POST", headers, body: JSON.stringify(body) });
+  if (!response.ok || !response.body) {
+    const error = await response.json().catch(() => ({ detail: "Request failed" }));
+    throw new Error(error.detail ?? "Request failed");
+  }
+
+  const decoder = new TextDecoder();
+  const reader = response.body.getReader();
+  let buffer = "";
+  let answer = "";
+  let citations: RAGAnswer["citations"] = [];
+
+  function consume(rawEvent: string) {
+    const event = rawEvent.match(/^event: (.+)$/m)?.[1];
+    const data = rawEvent.match(/^data: (.+)$/m)?.[1];
+    if (!event || !data) return;
+    const payload = JSON.parse(data) as { message?: string; citations?: RAGAnswer["citations"]; text?: string; answer?: string };
+    if (event === "status" && payload.message) handlers.onStatus?.(payload.message);
+    if (event === "citations" && payload.citations) {
+      citations = payload.citations;
+      handlers.onCitations?.(citations);
+    }
+    if (event === "token" && payload.text) {
+      answer += payload.text;
+      handlers.onToken?.(payload.text);
+    }
+    if (event === "done" && typeof payload.answer === "string") answer = payload.answer;
+  }
+
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const events = buffer.split("\n\n");
+    buffer = events.pop() ?? "";
+    events.filter(Boolean).forEach(consume);
+  }
+  if (buffer.trim()) consume(buffer);
+  return { answer, citations };
+}
+
 export function downloadJson(filename: string, payload: unknown) {
   const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
   const url = URL.createObjectURL(blob);
@@ -86,5 +137,7 @@ export const api = {
   workspaceDocuments: (workspaceId: string, includeArchived = false) =>
     request<Paginated<DocumentItem>>(`/workspaces/${workspaceId}/documents?include_archived=${includeArchived}`),
   ask: (query: string, limit = 5) =>
-    request<RAGAnswer>("/rag/query", { method: "POST", body: JSON.stringify({ query, limit }) })
+    request<RAGAnswer>("/rag/query", { method: "POST", body: JSON.stringify({ query, limit }) }),
+  askStream: (query: string, handlers: RAGStreamHandlers, limit = 5) =>
+    streamRequest("/rag/query/stream", { query, limit }, handlers)
 };

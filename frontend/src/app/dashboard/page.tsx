@@ -27,6 +27,7 @@ export default function DashboardPage() {
   const [noteTags, setNoteTags] = useState("");
   const [askQuery, setAskQuery] = useState("");
   const [ragAnswer, setRagAnswer] = useState<RAGAnswer | null>(null);
+  const [ragStatus, setRagStatus] = useState("");
   const [selectedWorkspace, setSelectedWorkspace] = useState("");
   const [busy, setBusy] = useState(false);
 
@@ -126,8 +127,19 @@ export default function DashboardPage() {
   async function askKnowledgeBase(event: FormEvent) {
     event.preventDefault();
     setBusy(true);
-    setRagAnswer(await api.ask(askQuery));
-    setBusy(false);
+    setRagStatus("retrieving");
+    setRagAnswer({ answer: "", citations: [] });
+    try {
+      const finalAnswer = await api.askStream(askQuery, {
+        onStatus: setRagStatus,
+        onCitations: (citations) => setRagAnswer((current) => ({ answer: current?.answer ?? "", citations })),
+        onToken: (text) => setRagAnswer((current) => ({ answer: `${current?.answer ?? ""}${text}`, citations: current?.citations ?? [] }))
+      });
+      setRagAnswer(finalAnswer);
+      setRagStatus("");
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (
@@ -200,12 +212,15 @@ export default function DashboardPage() {
               required
             />
             <button className="focus-ring rounded-lg bg-clay px-4 py-2 font-semibold text-white" disabled={busy}>
-              Ask
+              {ragStatus ? "Streaming" : "Ask"}
             </button>
           </form>
+          {ragStatus && <p className="mt-3 text-sm font-medium uppercase text-black/50">{ragStatus}</p>}
           {ragAnswer && (
             <div className="mt-4 grid gap-4 lg:grid-cols-[1fr_0.8fr]">
-              <p className="rounded-lg bg-mint/50 p-4 leading-7 text-black/75">{ragAnswer.answer}</p>
+              <p className="min-h-24 rounded-lg bg-mint/50 p-4 leading-7 text-black/75">
+                {ragAnswer.answer || "Preparing answer..."}
+              </p>
               <div className="space-y-2">
                 {ragAnswer.citations.map((citation) => (
                   <Link
