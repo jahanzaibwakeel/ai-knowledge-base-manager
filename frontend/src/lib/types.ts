@@ -71,6 +71,19 @@ export type RAGAnswer = {
   }>;
 };
 
+export type RAGFeedbackItem = {
+  id: string;
+  user_id: string;
+  workspace_ids: string[];
+  query: string;
+  answer: string;
+  rating: "helpful" | "not_helpful";
+  comment?: string | null;
+  citations: RAGAnswer["citations"];
+  created_at: string;
+  updated_at: string;
+};
+
 export type WorkspaceMember = {
   id: string;
   workspace_id: string;

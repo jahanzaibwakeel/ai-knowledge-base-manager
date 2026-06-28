@@ -32,8 +32,36 @@ const dashboard = {
   activity: [{ id: "activity-1", action: "created", message: "Created note MongoDB Atlas Notes", created_at: new Date().toISOString() }]
 };
 
+const ragFeedback = {
+  items: [
+    {
+      id: "feedback-1",
+      user_id: "user-1",
+      workspace_ids: ["workspace-1"],
+      query: "Can I use Atlas?",
+      answer: "Use MongoDB Atlas by setting MONGO_URI to your cluster connection string.",
+      rating: "not_helpful",
+      comment: null,
+      citations: [
+        {
+          document_id: "doc-1",
+          workspace_id: "workspace-1",
+          document_title: "MongoDB Atlas Notes",
+          chunk_index: 0,
+          text: "Atlas can host MongoDB for production knowledge bases."
+        }
+      ],
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    }
+  ],
+  total: 1,
+  limit: 10,
+  offset: 0
+};
+
 test.beforeEach(async ({ page }) => {
-  await page.addInitScript(({ dashboard }) => {
+  await page.addInitScript(({ dashboard, ragFeedback }) => {
     localStorage.setItem("kbm_token", "test-token");
     const originalFetch = window.fetch.bind(window);
     window.fetch = async (input, init) => {
@@ -90,10 +118,11 @@ test.beforeEach(async ({ page }) => {
       if (url.includes("/api/v1/rag/query")) {
         return json({ answer: "Use MongoDB Atlas by setting MONGO_URI to your cluster connection string.", citations: [] });
       }
-      if (url.includes("/api/v1/rag/feedback")) return json({ id: "feedback-1", rating: "helpful" });
+      if (url.includes("/api/v1/rag/feedback") && init?.method === "POST") return json({ id: "feedback-1", rating: "helpful" });
+      if (url.includes("/api/v1/rag/feedback")) return json(ragFeedback);
       return originalFetch(input, init);
     };
-  }, { dashboard });
+  }, { dashboard, ragFeedback });
   await page.route("**/api/v1/**", (route) => {
     const url = route.request().url();
     const headers = {
@@ -145,8 +174,11 @@ test.beforeEach(async ({ page }) => {
       }
       });
     }
-    if (url.endsWith("/rag/feedback")) {
+    if (url.endsWith("/rag/feedback") && route.request().method() === "POST") {
       return route.fulfill({ status: 201, headers, json: { id: "feedback-1", rating: "helpful" } });
+    }
+    if (url.includes("/rag/feedback")) {
+      return route.fulfill({ headers, json: ragFeedback });
     }
     return route.fulfill({ status: 404, headers, json: { detail: "Not mocked" } });
   });
@@ -161,6 +193,9 @@ test("system status page shows operational safety and metrics", async ({ page })
   await expect(page.getByText("No OpenAI key")).toBeVisible();
   await expect(page.getByText("42")).toBeVisible();
   await expect(page.getByText("No recent 500-level errors.")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "RAG feedback review" })).toBeVisible();
+  await expect(page.getByText("Can I use Atlas?")).toBeVisible();
+  await expect(page.getByRole("article").getByText("Not helpful")).toBeVisible();
 });
 
 test("dashboard renders documents, search, and RAG citations", async ({ page }) => {

@@ -1,4 +1,4 @@
-import { AnalysisJob, Dashboard, DocumentItem, DocumentVersion, MetricsStatus, Paginated, RAGAnswer, SafetyStatus, User, Workspace, WorkspaceMember } from "./types";
+import { AnalysisJob, Dashboard, DocumentItem, DocumentVersion, MetricsStatus, Paginated, RAGAnswer, RAGFeedbackItem, SafetyStatus, User, Workspace, WorkspaceMember } from "./types";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
 const ROOT_API_URL = API_URL.replace(/\/api\/v1\/?$/, "");
@@ -149,6 +149,8 @@ export const api = {
     streamRequest("/rag/query/stream", { query, limit }, handlers),
   sendRagFeedback: (payload: { query: string; answer: string; rating: "helpful" | "not_helpful"; comment?: string; citations: RAGAnswer["citations"] }) =>
     request("/rag/feedback", { method: "POST", body: JSON.stringify(payload) }),
+  ragFeedback: (rating?: RAGFeedbackItem["rating"]) =>
+    request<Paginated<RAGFeedbackItem>>(`/rag/feedback?limit=10${rating ? `&rating=${rating}` : ""}`),
   health: () => rootRequest<{ status: string }>("/health"),
   ready: () => rootRequest<{ status: string }>("/ready"),
   safety: () => rootRequest<SafetyStatus>("/safety"),

@@ -235,6 +235,35 @@ class RAGFeedbackRepository(MongoRepository):
     def __init__(self, db: AsyncIOMotorDatabase):
         super().__init__(db.rag_feedback)
 
+    def _query(self, workspace_ids: list[str], rating: str | None = None) -> dict:
+        query: dict = {"workspace_ids": {"$in": workspace_ids}}
+        if rating:
+            query["rating"] = rating
+        return query
+
+    async def list_for_workspaces(
+        self,
+        workspace_ids: list[str],
+        *,
+        rating: str | None = None,
+        limit: int = 25,
+        skip: int = 0,
+    ) -> list[dict]:
+        if not workspace_ids:
+            return []
+        cursor = (
+            self.collection.find(self._query(workspace_ids, rating))
+            .sort("created_at", -1)
+            .skip(skip)
+            .limit(limit)
+        )
+        return [serialize(doc) async for doc in cursor]
+
+    async def count_for_workspaces(self, workspace_ids: list[str], rating: str | None = None) -> int:
+        if not workspace_ids:
+            return 0
+        return await self.collection.count_documents(self._query(workspace_ids, rating))
+
     async def summary_for_workspaces(self, workspace_ids: list[str]) -> dict:
         if not workspace_ids:
             return {"helpful": 0, "not_helpful": 0, "total": 0}

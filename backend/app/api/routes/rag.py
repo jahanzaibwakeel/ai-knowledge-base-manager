@@ -3,7 +3,7 @@ import json
 import re
 from collections.abc import AsyncIterator
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from fastapi.responses import StreamingResponse
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from pydantic import BaseModel, Field
@@ -27,6 +27,12 @@ class RAGFeedback(BaseModel):
     rating: str = Field(pattern="^(helpful|not_helpful)$")
     comment: str | None = Field(default=None, max_length=1000)
     citations: list[dict] = Field(default_factory=list)
+
+
+class RAGFeedbackListQuery(BaseModel):
+    rating: str | None = Field(default=None, pattern="^(helpful|not_helpful)$")
+    limit: int = Field(default=25, ge=1, le=100)
+    offset: int = Field(default=0, ge=0)
 
 
 @router.post("/query")
@@ -100,3 +106,28 @@ async def record_rag_feedback(
         }
     )
     return feedback
+
+
+@router.get("/feedback")
+async def list_rag_feedback(
+    rating: str | None = Query(default=None, pattern="^(helpful|not_helpful)$"),
+    limit: int = Query(default=25, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+    user: dict = Depends(current_user),
+    db: AsyncIOMotorDatabase = Depends(get_db),
+) -> dict:
+    query = RAGFeedbackListQuery(rating=rating, limit=limit, offset=offset)
+    workspaces = await accessible_workspaces(db, user["id"])
+    workspace_ids = [workspace["id"] for workspace in workspaces]
+    repository = RAGFeedbackRepository(db)
+    return {
+        "items": await repository.list_for_workspaces(
+            workspace_ids,
+            rating=query.rating,
+            limit=query.limit,
+            skip=query.offset,
+        ),
+        "total": await repository.count_for_workspaces(workspace_ids, query.rating),
+        "limit": query.limit,
+        "offset": query.offset,
+    }

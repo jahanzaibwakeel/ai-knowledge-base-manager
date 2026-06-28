@@ -1,11 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
-import { AlertTriangle, CheckCircle2, RefreshCw, ShieldCheck } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { AlertTriangle, CheckCircle2, MessageSquareWarning, RefreshCw, ShieldCheck } from "lucide-react";
 import { Shell } from "@/components/Shell";
 import { api } from "@/lib/api";
-import { MetricsStatus, SafetyStatus } from "@/lib/types";
+import { MetricsStatus, Paginated, RAGFeedbackItem, SafetyStatus } from "@/lib/types";
 
 type Probe = {
   health?: string;
@@ -13,6 +13,8 @@ type Probe = {
   safety?: SafetyStatus;
   metrics?: MetricsStatus;
 };
+
+type FeedbackRatingFilter = "all" | RAGFeedbackItem["rating"];
 
 function StatusPill({ ok, label }: { ok: boolean; label: string }) {
   return (
@@ -34,28 +36,37 @@ function MetricCard({ label, value }: { label: string; value: string | number })
 
 export default function SystemPage() {
   const [probe, setProbe] = useState<Probe>({});
+  const [feedback, setFeedback] = useState<Paginated<RAGFeedbackItem>>({ items: [], limit: 10, offset: 0 });
+  const [feedbackRating, setFeedbackRating] = useState<FeedbackRatingFilter>("all");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
 
-  async function load() {
+  const load = useCallback(async (rating: FeedbackRatingFilter) => {
     setLoading(true);
     setError("");
     try {
-      const [health, ready, safety, metrics] = await Promise.all([api.health(), api.ready(), api.safety(), api.metrics()]);
+      const [health, ready, safety, metrics, ragFeedback] = await Promise.all([
+        api.health(),
+        api.ready(),
+        api.safety(),
+        api.metrics(),
+        api.ragFeedback(rating === "all" ? undefined : rating)
+      ]);
       setProbe({ health: health.status, ready: ready.status, safety, metrics });
+      setFeedback(ragFeedback);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to load system status");
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
 
   useEffect(() => {
     const timeout = window.setTimeout(() => {
-      void load();
+      void load(feedbackRating);
     }, 0);
     return () => window.clearTimeout(timeout);
-  }, []);
+  }, [feedbackRating, load]);
 
   const healthy = probe.health === "ok" && probe.ready === "ready";
   const costSafe = Boolean(probe.safety?.zero_cost_mode && !probe.safety.billing_risk);
@@ -78,7 +89,7 @@ export default function SystemPage() {
             <Link className="focus-ring rounded-lg border border-black/10 bg-white px-4 py-2 font-semibold text-ink" href="/dashboard">
               Dashboard
             </Link>
-            <button className="focus-ring inline-flex items-center gap-2 rounded-lg bg-ink px-4 py-2 font-semibold text-white" onClick={load} disabled={loading}>
+            <button className="focus-ring inline-flex items-center gap-2 rounded-lg bg-ink px-4 py-2 font-semibold text-white" onClick={() => void load(feedbackRating)} disabled={loading}>
               <RefreshCw size={16} /> Refresh
             </button>
           </div>
@@ -125,6 +136,47 @@ export default function SystemPage() {
             </div>
           </section>
         </div>
+
+        <section className="mt-4 rounded-lg border border-black/10 bg-white p-5 shadow-soft">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <h3 className="flex items-center gap-2 text-lg font-semibold text-ink"><MessageSquareWarning size={18} /> RAG feedback review</h3>
+            <select
+              className="focus-ring rounded-lg border border-black/10 bg-white px-3 py-2 text-sm font-semibold text-ink"
+              value={feedbackRating}
+              onChange={(event) => {
+                const nextRating = event.target.value as FeedbackRatingFilter;
+                setFeedbackRating(nextRating);
+              }}
+            >
+              <option value="all">All ratings</option>
+              <option value="not_helpful">Not helpful</option>
+              <option value="helpful">Helpful</option>
+            </select>
+          </div>
+          <div className="mt-4 space-y-3">
+            {feedback.items.length ? feedback.items.map((item) => (
+              <article key={item.id} className="rounded-lg border border-black/10 p-4">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className={`rounded-lg px-2 py-1 text-xs font-bold uppercase ${item.rating === "helpful" ? "bg-mint text-ink" : "bg-red-50 text-red-700"}`}>
+                    {item.rating === "helpful" ? "Helpful" : "Not helpful"}
+                  </span>
+                  <time className="text-sm text-black/50">{new Date(item.created_at).toLocaleString()}</time>
+                </div>
+                <p className="mt-3 text-sm font-semibold text-ink">{item.query}</p>
+                <p className="mt-2 line-clamp-3 text-sm text-black/65">{item.answer}</p>
+                {item.citations.length > 0 && (
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {item.citations.slice(0, 3).map((citation) => (
+                      <span key={`${item.id}-${citation.document_id}-${citation.chunk_index}`} className="rounded-lg bg-black/5 px-2 py-1 text-xs font-medium text-black/60">
+                        {citation.document_title} #{citation.chunk_index + 1}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </article>
+            )) : <p className="rounded-lg bg-mint/50 p-3 text-sm text-black/70">No RAG feedback for this filter yet.</p>}
+          </div>
+        </section>
       </div>
     </Shell>
   );
