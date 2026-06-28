@@ -15,9 +15,9 @@ from app.repositories.domain import (
 from app.schemas.entities import DocumentOut, NoteCreate, NoteUpdate
 from app.services.activity import ActivityService
 from app.services.analysis import AnalysisService
-from app.services.parser import extract_document_text
+from app.services.parser import ExtractedTextTooLargeError, extract_document_text
 from app.services.rag import RAGService
-from app.services.storage import FileStorageService
+from app.services.storage import FileStorageService, UploadTooLargeError
 
 router = APIRouter(prefix="/documents", tags=["documents"])
 
@@ -35,6 +35,14 @@ def normalize_terms(values: list[str]) -> list[str]:
     for value in values:
         terms.extend(item.strip() for item in value.split(","))
     return sorted({term for term in terms if term}, key=str.lower)
+
+
+def validate_document_content_size(content: str) -> None:
+    from app.core.config import get_settings
+
+    limit = get_settings().max_document_chars
+    if len(content) > limit:
+        raise HTTPException(status_code=413, detail=f"Document content exceeds {limit} character limit")
 
 
 async def require_workspace_collections(
@@ -59,6 +67,7 @@ async def create_note(
     db: AsyncIOMotorDatabase = Depends(get_db),
 ) -> dict:
     await require_workspace(db, user["id"], payload.workspace_id, "editor")
+    validate_document_content_size(payload.content)
     collection_ids = await require_workspace_collections(db, payload.workspace_id, payload.collection_ids)
     tags = normalize_terms(payload.tags)
     document = await DocumentRepository(db).create(
@@ -96,10 +105,18 @@ async def upload_document(
     await require_workspace(db, user["id"], workspace_id, "editor")
     collection_ids = await require_workspace_collections(db, workspace_id, collection_ids)
     tags = normalize_terms(tags)
-    stored_file = await FileStorageService().save_upload(file, workspace_id)
+    storage = FileStorageService()
+    try:
+        stored_file = await storage.save_upload(file, workspace_id)
+    except UploadTooLargeError as exc:
+        raise HTTPException(status_code=413, detail=str(exc)) from exc
     try:
         extracted = await extract_document_text(file)
+    except ExtractedTextTooLargeError as exc:
+        storage.delete_stored_file(stored_file.get("storage_path"))
+        raise HTTPException(status_code=413, detail=str(exc)) from exc
     except ValueError as exc:
+        storage.delete_stored_file(stored_file.get("storage_path"))
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     title = Path(extracted.filename).stem
     document = await DocumentRepository(db).create(
@@ -151,6 +168,8 @@ async def update_document(
         )
     if "tags" in updates:
         updates["tags"] = normalize_terms(updates["tags"])
+    if "content" in updates:
+        validate_document_content_size(updates["content"])
     should_reanalyze = "content" in updates or "title" in updates
     if should_reanalyze:
         updates.update({"analysis_status": "pending", "summary": None, "key_points": [], "action_items": []})

@@ -15,6 +15,7 @@ A production-style full-stack knowledge base app with FastAPI, Next.js, MongoDB,
 - Background AI/RAG analysis jobs with document status tracking
 - Workspace members with `owner`, `editor`, and `viewer` roles
 - Original upload retention through a configurable file storage directory
+- Configurable upload and extracted-document size limits
 - Request IDs, basic in-memory rate limiting, readiness checks, and document version restore
 - Lightweight `/metrics` and `/metrics.json` observability endpoints
 - Zero-cost safety mode blocks paid OpenAI calls by default
@@ -58,6 +59,7 @@ MONGO_DB=knowledge_base
 Keep credentials out of Git and make sure the Atlas network access rules allow your deployment or development IP.
 
 Uploaded source files are retained under `FILE_STORAGE_DIR` and mounted as a Docker volume by default.
+Uploads default to `MAX_UPLOAD_SIZE_MB=25`, and extracted/note content defaults to `MAX_DOCUMENT_CHARS=200000`.
 
 By default, the app uses local embeddings so there is no API bill:
 

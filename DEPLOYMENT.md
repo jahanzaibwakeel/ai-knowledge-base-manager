@@ -29,19 +29,26 @@ cp .env.example .env
 JWT_SECRET=replace-with-a-long-random-secret
 ```
 
-3. Build the backend image:
+3. Review ingestion limits for your server size:
+
+```env
+MAX_UPLOAD_SIZE_MB=25
+MAX_DOCUMENT_CHARS=200000
+```
+
+4. Build the backend image:
 
 ```bash
 docker compose build backend
 ```
 
-4. Prefetch local models on the server:
+5. Prefetch local models on the server:
 
 ```bash
 docker compose run --rm backend python scripts/prefetch_models.py
 ```
 
-5. Start the stack:
+6. Start the stack:
 
 ```bash
 docker compose up -d
@@ -83,3 +90,4 @@ Restore is destructive: it drops MongoDB collections and replaces uploaded files
 - Keep `OPENAI_API_KEY` empty for zero billing risk.
 - Keep `ZERO_COST_MODE=true` unless you intentionally want paid hosted AI calls.
 - Monitor disk usage for uploaded files and model cache.
+- Keep upload and document-size limits aligned with server memory and disk capacity.

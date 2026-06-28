@@ -57,14 +57,14 @@ class CollectionOut(BaseModel):
 class NoteCreate(BaseModel):
     workspace_id: str
     title: str = Field(min_length=1, max_length=180)
-    content: str = Field(min_length=1)
+    content: str = Field(min_length=1, max_length=200_000)
     collection_ids: list[str] = []
     tags: list[str] = []
 
 
 class NoteUpdate(BaseModel):
     title: str | None = Field(default=None, min_length=1, max_length=180)
-    content: str | None = None
+    content: str | None = Field(default=None, max_length=200_000)
     collection_ids: list[str] | None = None
     tags: list[str] | None = None
 
