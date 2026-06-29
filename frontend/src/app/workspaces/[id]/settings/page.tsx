@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { use, useEffect, useState } from "react";
-import { ArrowLeft, Download, Plus, Save, Users } from "lucide-react";
+import { ArrowLeft, Crown, Download, Plus, Save, Trash2, Users } from "lucide-react";
 import { Shell } from "@/components/Shell";
 import { api, downloadJson } from "@/lib/api";
 import { DocumentItem, Workspace, WorkspaceMember } from "@/lib/types";
@@ -41,19 +41,65 @@ export default function WorkspaceSettings({ params }: { params: Promise<{ id: st
 
   async function saveWorkspace() {
     setBusy(true);
-    const updated = await api.updateWorkspace(id, { name, description });
-    setWorkspace(updated);
-    setBusy(false);
+    try {
+      const updated = await api.updateWorkspace(id, { name, description });
+      setWorkspace(updated);
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function addMember(event: React.FormEvent) {
     event.preventDefault();
     setBusy(true);
-    await api.addMember(id, memberEmail, memberRole);
-    setMembers(await api.members(id));
-    setMemberEmail("");
-    setMemberRole("viewer");
-    setBusy(false);
+    try {
+      await api.addMember(id, memberEmail, memberRole);
+      setMembers(await api.members(id));
+      setMemberEmail("");
+      setMemberRole("viewer");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function updateMemberRole(memberId: string, role: WorkspaceMember["role"]) {
+    setBusy(true);
+    try {
+      await api.updateMember(id, memberId, role);
+      setMembers(await api.members(id));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function removeMember(memberId: string) {
+    setBusy(true);
+    try {
+      await api.removeMember(id, memberId);
+      setMembers(await api.members(id));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function transferOwnership(userId: string) {
+    setBusy(true);
+    try {
+      setWorkspace(await api.transferOwnership(id, userId));
+      setMembers(await api.members(id));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function hardDeleteDocument(documentId: string) {
+    setBusy(true);
+    try {
+      await api.hardDeleteDocument(documentId);
+      setArchived((items) => items.filter((item) => item.id !== documentId));
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function exportWorkspace() {
@@ -97,9 +143,27 @@ export default function WorkspaceSettings({ params }: { params: Promise<{ id: st
             </form>
             <div className="mt-4 space-y-2">
               {members.map((member) => (
-                <p key={member.id} className="rounded-lg bg-black/[0.03] px-3 py-2 text-sm text-black/70">
-                  <span className="font-semibold text-ink">{member.name}</span> {member.email} · {member.role}
-                </p>
+                <div key={member.id} className="rounded-lg bg-black/[0.03] px-3 py-2 text-sm text-black/70">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                    <p><span className="font-semibold text-ink">{member.name}</span> {member.email}</p>
+                    <div className="flex flex-wrap items-center gap-2">
+                      {workspace?.owner_id === member.user_id && (
+                        <span className="inline-flex items-center gap-1 rounded-lg bg-mint px-2 py-1 text-xs font-bold uppercase text-ink"><Crown size={13} />Owner</span>
+                      )}
+                      <select className="focus-ring rounded-lg border border-black/10 bg-white px-2 py-1 text-xs font-semibold" value={member.role} onChange={(event) => void updateMemberRole(member.id, event.target.value as WorkspaceMember["role"])} disabled={busy}>
+                        <option value="viewer">Viewer</option>
+                        <option value="editor">Editor</option>
+                        <option value="owner">Owner</option>
+                      </select>
+                      <button className="focus-ring rounded-lg border border-black/10 bg-white px-2 py-1 text-xs font-semibold text-ink" onClick={() => void transferOwnership(member.user_id)} disabled={busy || workspace?.owner_id === member.user_id}>
+                        Transfer
+                      </button>
+                      <button className="focus-ring rounded-lg border border-red-200 bg-white px-2 py-1 text-xs font-semibold text-red-700" onClick={() => void removeMember(member.id)} disabled={busy || workspace?.owner_id === member.user_id}>
+                        Remove
+                      </button>
+                    </div>
+                  </div>
+                </div>
               ))}
             </div>
           </section>
@@ -109,10 +173,18 @@ export default function WorkspaceSettings({ params }: { params: Promise<{ id: st
           <h2 className="text-xl font-semibold text-ink">Archived documents</h2>
           <div className="mt-4 grid gap-3 md:grid-cols-2">
             {archived.map((doc) => (
-              <Link key={doc.id} href={`/documents/${doc.id}`} className="rounded-lg border border-black/10 p-3 hover:bg-mint/40">
+              <article key={doc.id} className="rounded-lg border border-black/10 p-3">
                 <p className="font-semibold text-ink">{doc.title}</p>
                 <p className="mt-1 line-clamp-2 text-sm text-black/60">{doc.summary || doc.content}</p>
-              </Link>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <Link href={`/documents/${doc.id}`} className="focus-ring rounded-lg border border-black/10 px-3 py-1.5 text-sm font-semibold text-ink">
+                    View
+                  </Link>
+                  <button className="focus-ring inline-flex items-center gap-2 rounded-lg border border-red-200 px-3 py-1.5 text-sm font-semibold text-red-700" onClick={() => void hardDeleteDocument(doc.id)} disabled={busy}>
+                    <Trash2 size={15} />Delete forever
+                  </button>
+                </div>
+              </article>
             ))}
             {archived.length === 0 && <p className="text-sm text-black/60">No archived documents.</p>}
           </div>

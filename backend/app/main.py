@@ -7,7 +7,7 @@ from fastapi.responses import JSONResponse, PlainTextResponse
 from app.api.routes import activity, auth, collections, dashboard, documents, rag, workspaces
 from app.core.config import get_settings
 from app.core.metrics import request_metrics
-from app.core.middleware import InMemoryRateLimitMiddleware, RequestContextMiddleware
+from app.core.middleware import DistributedRateLimitMiddleware, RequestContextMiddleware
 from app.db.mongo import close_mongo_connection, connect_to_mongo, get_database
 
 
@@ -28,7 +28,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-app.add_middleware(InMemoryRateLimitMiddleware)
+app.add_middleware(DistributedRateLimitMiddleware)
 app.add_middleware(RequestContextMiddleware)
 
 

@@ -12,6 +12,19 @@ services:
       timeout: 5s
       retries: 5
 
+  valkey:
+    image: valkey/valkey:7-alpine
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - valkey_data:/data
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   ollama:
     image: ollama/ollama:latest
     restart: unless-stopped
@@ -56,6 +69,8 @@ services:
       MAX_DOCUMENT_CHARS: ${MAX_DOCUMENT_CHARS:-200000}
       PASSWORD_RESET_TOKEN_MINUTES: ${PASSWORD_RESET_TOKEN_MINUTES:-30}
       RETURN_PASSWORD_RESET_TOKEN: ${RETURN_PASSWORD_RESET_TOKEN:-true}
+      RATE_LIMIT_BACKEND: ${RATE_LIMIT_BACKEND:-redis}
+      REDIS_URL: redis://valkey:6379/0
     ports:
       - "8000:8000"
     volumes:
@@ -63,6 +78,8 @@ services:
       - model_cache:/app/model-cache
     depends_on:
       mongo:
+        condition: service_healthy
+      valkey:
         condition: service_healthy
     healthcheck:
       test:
@@ -108,3 +125,4 @@ volumes:
   ollama_data:
   backend_uploads:
   model_cache:
+  valkey_data:

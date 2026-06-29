@@ -27,6 +27,14 @@ class WorkspaceMemberAdd(BaseModel):
     role: str = Field(default="viewer", pattern="^(owner|editor|viewer)$")
 
 
+class WorkspaceMemberUpdate(BaseModel):
+    role: str = Field(pattern="^(owner|editor|viewer)$")
+
+
+class WorkspaceOwnershipTransfer(BaseModel):
+    user_id: str
+
+
 class WorkspaceMemberOut(BaseModel):
     id: str
     workspace_id: str

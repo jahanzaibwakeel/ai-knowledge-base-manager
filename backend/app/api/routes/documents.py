@@ -199,6 +199,23 @@ async def delete_document(
     )
 
 
+@router.delete("/{document_id}/hard", status_code=status.HTTP_204_NO_CONTENT)
+async def hard_delete_document(
+    document_id: str, user: dict = Depends(current_user), db: AsyncIOMotorDatabase = Depends(get_db)
+) -> None:
+    document = await require_document(db, user["id"], document_id)
+    await require_workspace(db, user["id"], document["workspace_id"], "owner")
+    await RAGService(db).remove_document(document_id)
+    FileStorageService().delete_stored_file(document.get("file_storage_path"))
+    await db.document_versions.delete_many({"document_id": document_id})
+    await db.analysis_jobs.delete_many({"document_id": document_id})
+    await db.rag_feedback.delete_many({"citations.document_id": document_id})
+    await DocumentRepository(db).delete(document_id)
+    await ActivityService(ActivityRepository(db)).record(
+        document["workspace_id"], user["id"], "deleted", "document", f"Permanently deleted {document['title']}", document_id
+    )
+
+
 @router.post("/{document_id}/restore", response_model=DocumentOut)
 async def restore_archived_document(
     document_id: str,

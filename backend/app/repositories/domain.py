@@ -31,6 +31,10 @@ class WorkspaceMemberRepository(MongoRepository):
         cursor = self.collection.find({"workspace_id": workspace_id}).sort("role", 1)
         return [serialize(doc) async for doc in cursor]
 
+    async def delete_member(self, workspace_id: str, member_id: str) -> bool:
+        result = await self.collection.delete_one({"_id": oid(member_id), "workspace_id": workspace_id})
+        return result.deleted_count == 1
+
 
 class CollectionRepository(MongoRepository):
     def __init__(self, db: AsyncIOMotorDatabase):

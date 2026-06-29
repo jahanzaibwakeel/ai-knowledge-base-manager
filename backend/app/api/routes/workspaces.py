@@ -4,7 +4,14 @@ from motor.motor_asyncio import AsyncIOMotorDatabase
 from app.api.deps import current_user, get_db
 from app.repositories.domain import ActivityRepository, CollectionRepository, DocumentRepository, WorkspaceMemberRepository, WorkspaceRepository
 from app.repositories.users import UserRepository
-from app.schemas.entities import WorkspaceCreate, WorkspaceMemberAdd, WorkspaceOut, WorkspaceUpdate
+from app.schemas.entities import (
+    WorkspaceCreate,
+    WorkspaceMemberAdd,
+    WorkspaceMemberUpdate,
+    WorkspaceOut,
+    WorkspaceOwnershipTransfer,
+    WorkspaceUpdate,
+)
 from app.services.activity import ActivityService
 
 router = APIRouter(prefix="/workspaces", tags=["workspaces"])
@@ -176,3 +183,65 @@ async def add_workspace_member(
         workspace_id, user["id"], "added", "workspace_member", f"Added {invited['email']} as {payload.role}", member["id"]
     )
     return member
+
+
+@router.patch("/{workspace_id}/members/{member_id}")
+async def update_workspace_member(
+    workspace_id: str,
+    member_id: str,
+    payload: WorkspaceMemberUpdate,
+    user: dict = Depends(current_user),
+    db: AsyncIOMotorDatabase = Depends(get_db),
+) -> dict:
+    workspace = await require_workspace(db, user["id"], workspace_id, "owner")
+    member = await WorkspaceMemberRepository(db).get(member_id)
+    if not member or member["workspace_id"] != workspace_id:
+        raise HTTPException(status_code=404, detail="Workspace member not found")
+    if member["user_id"] == workspace["owner_id"] and payload.role != "owner":
+        raise HTTPException(status_code=400, detail="Transfer workspace ownership before downgrading this owner")
+    updated = await WorkspaceMemberRepository(db).update(member_id, {"role": payload.role})
+    await ActivityService(ActivityRepository(db)).record(
+        workspace_id, user["id"], "updated", "workspace_member", f"Updated {member['email']} to {payload.role}", member_id
+    )
+    return updated
+
+
+@router.delete("/{workspace_id}/members/{member_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def remove_workspace_member(
+    workspace_id: str,
+    member_id: str,
+    user: dict = Depends(current_user),
+    db: AsyncIOMotorDatabase = Depends(get_db),
+) -> None:
+    workspace = await require_workspace(db, user["id"], workspace_id, "owner")
+    member = await WorkspaceMemberRepository(db).get(member_id)
+    if not member or member["workspace_id"] != workspace_id:
+        raise HTTPException(status_code=404, detail="Workspace member not found")
+    if member["user_id"] == workspace["owner_id"]:
+        raise HTTPException(status_code=400, detail="Transfer workspace ownership before removing this owner")
+    await WorkspaceMemberRepository(db).delete_member(workspace_id, member_id)
+    await ActivityService(ActivityRepository(db)).record(
+        workspace_id, user["id"], "removed", "workspace_member", f"Removed {member['email']}", member_id
+    )
+
+
+@router.post("/{workspace_id}/transfer-ownership")
+async def transfer_workspace_ownership(
+    workspace_id: str,
+    payload: WorkspaceOwnershipTransfer,
+    user: dict = Depends(current_user),
+    db: AsyncIOMotorDatabase = Depends(get_db),
+) -> dict:
+    workspace = await require_workspace(db, user["id"], workspace_id, "owner")
+    member = await WorkspaceMemberRepository(db).get_member(workspace_id, payload.user_id)
+    if not member:
+        raise HTTPException(status_code=404, detail="New owner must be a workspace member")
+    updated_workspace = await WorkspaceRepository(db).update(workspace_id, {"owner_id": payload.user_id})
+    await WorkspaceMemberRepository(db).update(member["id"], {"role": "owner"})
+    current_owner = await WorkspaceMemberRepository(db).get_member(workspace_id, workspace["owner_id"])
+    if current_owner and current_owner["user_id"] != payload.user_id:
+        await WorkspaceMemberRepository(db).update(current_owner["id"], {"role": "editor"})
+    await ActivityService(ActivityRepository(db)).record(
+        workspace_id, user["id"], "transferred", "workspace", f"Transferred ownership to {member['email']}", workspace_id
+    )
+    return updated_workspace

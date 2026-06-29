@@ -31,6 +31,8 @@ class Settings(BaseSettings):
     return_password_reset_token: bool = True
     rate_limit_requests: int = 120
     rate_limit_window_seconds: int = 60
+    rate_limit_backend: str = "memory"
+    redis_url: str = "redis://valkey:6379/0"
     cors_origins: list[str] = ["http://localhost:3000", "http://127.0.0.1:3000"]
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")

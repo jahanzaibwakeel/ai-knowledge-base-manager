@@ -18,12 +18,13 @@ A production-style full-stack knowledge base app with FastAPI, Next.js, MongoDB,
 - Configurable embeddings: local ONNX/Hugging Face embeddings by default, deterministic local hash fallback, full Sentence Transformers optional, or OpenAI embeddings if enabled
 - Background AI/RAG analysis jobs with document status tracking
 - Workspace members with `owner`, `editor`, and `viewer` roles
+- Owner controls for member role changes, member removal, and workspace ownership transfer
 - Original upload retention through a configurable file storage directory
 - Configurable upload and extracted-document size limits
-- Request IDs, basic in-memory rate limiting, readiness checks, and document version restore
+- Request IDs, optional Redis/Valkey-backed rate limiting with in-memory fallback, readiness checks, and document version restore
 - Lightweight `/metrics` and `/metrics.json` observability endpoints
 - Zero-cost safety mode blocks paid OpenAI calls by default
-- Paginated document lists, filtered keyword search, soft archive/restore, and JSON export endpoints
+- Paginated document lists, filtered keyword search, soft archive/restore, permanent hard-delete, and JSON export endpoints
 - MongoDB text indexes for global keyword search
 - Responsive Next.js dashboard and document detail pages
 - System status page for health, readiness, safety, and request metrics
@@ -212,8 +213,8 @@ Use `NEXT_PUBLIC_API_URL=http://localhost:8000/api/v1` for local frontend develo
 
 ## DevOps
 
-- Docker Compose includes healthchecks for MongoDB, backend readiness, frontend availability, and Ollama.
-- Docker Compose includes persistent volumes for MongoDB data, uploaded files, Ollama models, and local Hugging Face/FastEmbed model cache.
+- Docker Compose includes healthchecks for MongoDB, Valkey, backend readiness, frontend availability, and Ollama.
+- Docker Compose includes persistent volumes for MongoDB data, Valkey rate limiting, uploaded files, Ollama models, and local Hugging Face/FastEmbed model cache.
 - PowerShell operations scripts provide Docker-based MongoDB/upload backup and restore.
 - Backend startup waits for MongoDB health before serving the API.
 - Frontend startup waits for backend readiness.
@@ -259,6 +260,7 @@ The backend uses a service/repository pattern: route handlers validate ownership
 - `GET /api/v1/documents/{document_id}`
 - `PATCH /api/v1/documents/{document_id}`
 - `DELETE /api/v1/documents/{document_id}` soft-archives the document
+- `DELETE /api/v1/documents/{document_id}/hard` permanently deletes an owner-authorized document
 - `POST /api/v1/documents/{document_id}/restore`
 - `GET /api/v1/documents/{document_id}/export`
 - `POST /api/v1/documents/{document_id}/analyze`
@@ -272,6 +274,9 @@ The backend uses a service/repository pattern: route handlers validate ownership
 - `GET /api/v1/rag/feedback?rating=not_helpful&limit=10`
 - `GET /api/v1/workspaces/{workspace_id}/members`
 - `POST /api/v1/workspaces/{workspace_id}/members`
+- `PATCH /api/v1/workspaces/{workspace_id}/members/{member_id}`
+- `DELETE /api/v1/workspaces/{workspace_id}/members/{member_id}`
+- `POST /api/v1/workspaces/{workspace_id}/transfer-ownership`
 
 Operational endpoints:
 
@@ -286,7 +291,7 @@ Operational endpoints:
 - Replace `JWT_SECRET` with a long random value.
 - Set `RETURN_PASSWORD_RESET_TOKEN=false` when an email delivery service is added; the default is convenient for local/self-hosted zero-cost recovery.
 - Restrict CORS origins for deployed domains.
-- Use a distributed rate limiter such as Redis/Valkey for multi-instance deployments; the included limiter is process-local.
+- Use `RATE_LIMIT_BACKEND=redis` with Valkey/Redis for multi-instance deployments, or `RATE_LIMIT_BACKEND=memory` for simple local development.
 - Run MongoDB with authentication and backups outside local development.
 - Consider background jobs for AI analysis on very large documents.
 - Local model providers are free in API cost but run on your machine/container. Expect slower responses on CPU and larger Docker images after installing optional ML dependencies.

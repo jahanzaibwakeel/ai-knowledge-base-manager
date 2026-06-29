@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 const dashboard = {
-  workspaces: [{ id: "workspace-1", name: "Research", created_at: new Date().toISOString(), updated_at: new Date().toISOString() }],
+  workspaces: [{ id: "workspace-1", owner_id: "user-1", name: "Research", created_at: new Date().toISOString(), updated_at: new Date().toISOString() }],
   collections: [{ id: "collection-1", workspace_id: "workspace-1", name: "Product", document_count: 1 }],
   recent_documents: [
     {
@@ -30,6 +30,25 @@ const dashboard = {
     }
   ],
   activity: [{ id: "activity-1", action: "created", message: "Created note MongoDB Atlas Notes", created_at: new Date().toISOString() }]
+};
+
+const workspaceMembers = [
+  { id: "member-1", workspace_id: "workspace-1", user_id: "user-1", email: "owner@example.com", name: "Owner", role: "owner" },
+  { id: "member-2", workspace_id: "workspace-1", user_id: "user-2", email: "editor@example.com", name: "Editor", role: "editor" }
+];
+
+const archivedDocuments = {
+  items: [
+    {
+      ...dashboard.recent_documents[0],
+      id: "doc-archived",
+      title: "Archived Atlas Notes",
+      archived_at: new Date().toISOString()
+    }
+  ],
+  total: 1,
+  limit: 25,
+  offset: 0
 };
 
 const ragFeedback = {
@@ -79,7 +98,7 @@ const activityPage = {
 };
 
 test.beforeEach(async ({ page }) => {
-  await page.addInitScript(({ dashboard, ragFeedback, activityPage }) => {
+  await page.addInitScript(({ dashboard, ragFeedback, activityPage, workspaceMembers, archivedDocuments }) => {
     localStorage.setItem("kbm_token", "test-token");
     const originalFetch = window.fetch.bind(window);
     window.fetch = async (input, init) => {
@@ -122,11 +141,17 @@ test.beforeEach(async ({ page }) => {
       }
       if (url.includes("/api/v1/auth/password-reset/confirm")) return json({ message: "Password has been reset." });
       if (url.endsWith("/api/v1/workspaces")) return json(dashboard.workspaces);
+      if (url.includes("/api/v1/workspaces/workspace-1/transfer-ownership")) return json({ ...dashboard.workspaces[0], owner_id: "user-2" });
       if (url.includes("/api/v1/workspaces/workspace-1/members")) {
-        return json([{ id: "member-1", workspace_id: "workspace-1", user_id: "user-1", email: "owner@example.com", name: "Owner", role: "owner" }]);
+        if (init?.method === "PATCH") return json({ ...workspaceMembers[1], role: "viewer" });
+        if (init?.method === "DELETE") return new Response(null, { status: 204 });
+        return json(workspaceMembers);
       }
       if (url.includes("/api/v1/workspaces/workspace-1/documents")) {
-        return json({ items: dashboard.recent_documents, total: 1, limit: 25, offset: 0 });
+        return json(url.includes("include_archived=true") ? archivedDocuments : { items: dashboard.recent_documents, total: 1, limit: 25, offset: 0 });
+      }
+      if (url.includes("/api/v1/documents/doc-archived/hard")) {
+        return new Response(null, { status: 204 });
       }
       if (url.includes("/api/v1/rag/query/stream")) {
         const body = [
@@ -145,7 +170,7 @@ test.beforeEach(async ({ page }) => {
       if (url.includes("/api/v1/rag/feedback")) return json(ragFeedback);
       return originalFetch(input, init);
     };
-  }, { dashboard, ragFeedback, activityPage });
+  }, { dashboard, ragFeedback, activityPage, workspaceMembers, archivedDocuments });
   await page.route("**/api/v1/**", (route) => {
     const url = route.request().url();
     const headers = {
@@ -177,11 +202,19 @@ test.beforeEach(async ({ page }) => {
     if (url.endsWith("/workspaces")) {
       return route.fulfill({ headers, json: dashboard.workspaces });
     }
+    if (url.includes("/workspaces/workspace-1/transfer-ownership")) {
+      return route.fulfill({ headers, json: { ...dashboard.workspaces[0], owner_id: "user-2" } });
+    }
     if (url.includes("/workspaces/workspace-1/members")) {
-      return route.fulfill({ headers, json: [{ id: "member-1", workspace_id: "workspace-1", user_id: "user-1", email: "owner@example.com", name: "Owner", role: "owner" }] });
+      if (route.request().method() === "PATCH") return route.fulfill({ headers, json: { ...workspaceMembers[1], role: "viewer" } });
+      if (route.request().method() === "DELETE") return route.fulfill({ status: 204, headers });
+      return route.fulfill({ headers, json: workspaceMembers });
     }
     if (url.includes("/workspaces/workspace-1/documents")) {
-      return route.fulfill({ headers, json: { items: dashboard.recent_documents, total: 1, limit: 25, offset: 0 } });
+      return route.fulfill({ headers, json: url.includes("include_archived=true") ? archivedDocuments : { items: dashboard.recent_documents, total: 1, limit: 25, offset: 0 } });
+    }
+    if (url.includes("/documents/doc-archived/hard")) {
+      return route.fulfill({ status: 204, headers });
     }
     if (url.endsWith("/rag/query/stream")) {
       const body = [
@@ -278,4 +311,17 @@ test("password reset request and confirm flow works", async ({ page }) => {
   await page.getByLabel("New password").fill("new-password-123");
   await page.getByRole("button", { name: "Reset password" }).click();
   await expect(page.getByText("Password has been reset.")).toBeVisible();
+});
+
+test("workspace settings manages members and hard deletes archived documents", async ({ page }) => {
+  await page.goto("/workspaces/workspace-1/settings");
+
+  await expect(page.getByRole("heading", { name: "Research" })).toBeVisible();
+  await expect(page.getByText("editor@example.com")).toBeVisible();
+  await page.getByRole("button", { name: "Transfer" }).last().click();
+  await expect(page.locator("span").filter({ hasText: /^Owner$/ }).last()).toBeVisible();
+
+  await expect(page.getByText("Archived Atlas Notes")).toBeVisible();
+  await page.getByRole("button", { name: "Delete forever" }).click();
+  await expect(page.getByText("Archived Atlas Notes")).not.toBeVisible();
 });

@@ -146,6 +146,7 @@ export const api = {
   },
   regenerate: (id: string) => request<DocumentItem>(`/documents/${id}/analyze`, { method: "POST" }),
   archiveDocument: (id: string) => request<void>(`/documents/${id}`, { method: "DELETE" }),
+  hardDeleteDocument: (id: string) => request<void>(`/documents/${id}/hard`, { method: "DELETE" }),
   restoreDocument: (id: string) => request<DocumentItem>(`/documents/${id}/restore`, { method: "POST" }),
   exportDocument: (id: string) => request(`/documents/${id}/export`),
   analysisJobs: (id: string) => request<AnalysisJob[]>(`/documents/${id}/analysis-jobs`),
@@ -157,6 +158,18 @@ export const api = {
     request<WorkspaceMember>(`/workspaces/${workspaceId}/members`, {
       method: "POST",
       body: JSON.stringify({ email, role })
+    }),
+  updateMember: (workspaceId: string, memberId: string, role: WorkspaceMember["role"]) =>
+    request<WorkspaceMember>(`/workspaces/${workspaceId}/members/${memberId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ role })
+    }),
+  removeMember: (workspaceId: string, memberId: string) =>
+    request<void>(`/workspaces/${workspaceId}/members/${memberId}`, { method: "DELETE" }),
+  transferOwnership: (workspaceId: string, userId: string) =>
+    request<Workspace>(`/workspaces/${workspaceId}/transfer-ownership`, {
+      method: "POST",
+      body: JSON.stringify({ user_id: userId })
     }),
   workspaceDocuments: (workspaceId: string, includeArchived = false) =>
     request<Paginated<DocumentItem>>(`/workspaces/${workspaceId}/documents?include_archived=${includeArchived}`),
