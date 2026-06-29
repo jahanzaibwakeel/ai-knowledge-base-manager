@@ -17,6 +17,7 @@ from app.services.activity import ActivityService
 from app.services.analysis import AnalysisService
 from app.services.parser import ExtractedTextTooLargeError, extract_document_text
 from app.services.rag import RAGService
+from app.services.scheduler import schedule_document_analysis
 from app.services.storage import FileStorageService, UploadTooLargeError
 
 router = APIRouter(prefix="/documents", tags=["documents"])
@@ -88,7 +89,7 @@ async def create_note(
     await ActivityService(ActivityRepository(db)).record(
         payload.workspace_id, user["id"], "created", "document", f"Created note {document['title']}", document["id"]
     )
-    background_tasks.add_task(AnalysisService(db).run_document_analysis, document["id"], user["id"])
+    await schedule_document_analysis(background_tasks, db, document["id"], user["id"])
     return document
 
 
@@ -140,7 +141,7 @@ async def upload_document(
     await ActivityService(ActivityRepository(db)).record(
         workspace_id, user["id"], "uploaded", "document", f"Uploaded {extracted.filename}", document["id"]
     )
-    background_tasks.add_task(AnalysisService(db).run_document_analysis, document["id"], user["id"])
+    await schedule_document_analysis(background_tasks, db, document["id"], user["id"])
     return document
 
 
@@ -179,7 +180,7 @@ async def update_document(
         document["workspace_id"], user["id"], "updated", "document", f"Updated {updated['title']}", document_id
     )
     if should_reanalyze:
-        background_tasks.add_task(AnalysisService(db).run_document_analysis, document_id, user["id"])
+        await schedule_document_analysis(background_tasks, db, document_id, user["id"])
     else:
         await RAGService(db).index_document(updated)
     return updated
@@ -259,7 +260,7 @@ async def regenerate_insights(
     await ActivityService(ActivityRepository(db)).record(
         document["workspace_id"], user["id"], "analyzed", "document", f"Regenerated AI insights for {document['title']}", document_id
     )
-    background_tasks.add_task(AnalysisService(db).run_document_analysis, document_id, user["id"])
+    await schedule_document_analysis(background_tasks, db, document_id, user["id"])
     return updated
 
 
@@ -311,5 +312,5 @@ async def restore_document_version(
     await ActivityService(ActivityRepository(db)).record(
         document["workspace_id"], user["id"], "restored", "document", f"Restored {document['title']} to v{version}", document_id
     )
-    background_tasks.add_task(AnalysisService(db).run_document_analysis, document_id, user["id"])
+    await schedule_document_analysis(background_tasks, db, document_id, user["id"])
     return restored

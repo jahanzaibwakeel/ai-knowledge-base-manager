@@ -38,6 +38,38 @@ services:
       timeout: 10s
       retries: 5
 
+  minio:
+    image: minio/minio:latest
+    profiles: ["object-storage"]
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${S3_ACCESS_KEY_ID:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${S3_SECRET_ACCESS_KEY:-minioadmin}
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+
+  minio-init:
+    image: minio/mc:latest
+    profiles: ["object-storage"]
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint:
+      [
+        "/bin/sh",
+        "-c",
+        "mc alias set local http://minio:9000 ${S3_ACCESS_KEY_ID:-minioadmin} ${S3_SECRET_ACCESS_KEY:-minioadmin} && mc mb --ignore-existing local/${S3_BUCKET:-knowledge-base-uploads}",
+      ]
+
   backend:
     build:
       context: ./backend
@@ -65,8 +97,17 @@ services:
       OLLAMA_BASE_URL: http://ollama:11434
       OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3.1}
       FILE_STORAGE_DIR: /app/uploads
+      STORAGE_BACKEND: ${STORAGE_BACKEND:-local}
+      S3_ENDPOINT_URL: ${S3_ENDPOINT_URL:-http://minio:9000}
+      S3_ACCESS_KEY_ID: ${S3_ACCESS_KEY_ID:-minioadmin}
+      S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY:-minioadmin}
+      S3_BUCKET: ${S3_BUCKET:-knowledge-base-uploads}
+      S3_REGION: ${S3_REGION:-us-east-1}
+      S3_SECURE_URLS: ${S3_SECURE_URLS:-false}
       MAX_UPLOAD_SIZE_MB: ${MAX_UPLOAD_SIZE_MB:-25}
       MAX_DOCUMENT_CHARS: ${MAX_DOCUMENT_CHARS:-200000}
+      ANALYSIS_EXECUTION_MODE: ${ANALYSIS_EXECUTION_MODE:-background}
+      ANALYSIS_WORKER_POLL_SECONDS: ${ANALYSIS_WORKER_POLL_SECONDS:-2}
       PASSWORD_RESET_TOKEN_MINUTES: ${PASSWORD_RESET_TOKEN_MINUTES:-30}
       RETURN_PASSWORD_RESET_TOKEN: ${RETURN_PASSWORD_RESET_TOKEN:-true}
       RATE_LIMIT_BACKEND: ${RATE_LIMIT_BACKEND:-redis}
@@ -94,6 +135,39 @@ services:
       retries: 5
       start_period: 20s
 
+  worker:
+    build:
+      context: ./backend
+    profiles: ["worker"]
+    restart: unless-stopped
+    command: python -m app.worker
+    environment:
+      MONGO_URI: mongodb://mongo:27017
+      MONGO_DB: ${MONGO_DB:-knowledge_base}
+      JWT_SECRET: ${JWT_SECRET:-change-this-secret}
+      ZERO_COST_MODE: ${ZERO_COST_MODE:-true}
+      AI_PROVIDER: ${AI_PROVIDER:-local}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o-mini}
+      EMBEDDING_PROVIDER: ${EMBEDDING_PROVIDER:-fastembed}
+      OPENAI_EMBEDDING_MODEL: ${OPENAI_EMBEDDING_MODEL:-text-embedding-3-small}
+      EMBEDDING_DIMENSIONS: ${EMBEDDING_DIMENSIONS:-128}
+      FASTEMBED_MODEL: ${FASTEMBED_MODEL:-sentence-transformers/all-MiniLM-L6-v2}
+      SENTENCE_TRANSFORMER_MODEL: ${SENTENCE_TRANSFORMER_MODEL:-sentence-transformers/all-MiniLM-L6-v2}
+      TRANSFORMERS_SUMMARY_MODEL: ${TRANSFORMERS_SUMMARY_MODEL:-google/flan-t5-small}
+      TRANSFORMERS_DEVICE: ${TRANSFORMERS_DEVICE:--1}
+      HF_HOME: ${HF_HOME:-/app/model-cache}
+      TRANSFORMERS_CACHE: ${TRANSFORMERS_CACHE:-/app/model-cache/transformers}
+      HF_HUB_CACHE: ${HF_HUB_CACHE:-/app/model-cache/hub}
+      OLLAMA_BASE_URL: http://ollama:11434
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3.1}
+      ANALYSIS_WORKER_POLL_SECONDS: ${ANALYSIS_WORKER_POLL_SECONDS:-2}
+    volumes:
+      - model_cache:/app/model-cache
+    depends_on:
+      mongo:
+        condition: service_healthy
+
   frontend:
     build:
       context: ./frontend
@@ -120,9 +194,31 @@ services:
       retries: 5
       start_period: 20s
 
+  caddy:
+    image: caddy:2-alpine
+    profiles: ["proxy"]
+    restart: unless-stopped
+    environment:
+      CADDY_SITE_ADDRESS: ${CADDY_SITE_ADDRESS:-:80}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      frontend:
+        condition: service_healthy
+      backend:
+        condition: service_healthy
+
 volumes:
   mongo_data:
   ollama_data:
   backend_uploads:
   model_cache:
   valkey_data:
+  minio_data:
+  caddy_data:
+  caddy_config:

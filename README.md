@@ -17,9 +17,11 @@ A production-style full-stack knowledge base app with FastAPI, Next.js, MongoDB,
 - RAG evaluation endpoint for regression checks against expected answer terms and citation counts
 - Configurable embeddings: local ONNX/Hugging Face embeddings by default, deterministic local hash fallback, full Sentence Transformers optional, or OpenAI embeddings if enabled
 - Background AI/RAG analysis jobs with document status tracking
+- Optional worker process for queued AI/RAG analysis jobs
 - Workspace members with `owner`, `editor`, and `viewer` roles
 - Owner controls for member role changes, member removal, and workspace ownership transfer
 - Original upload retention through a configurable file storage directory
+- Optional S3-compatible object storage via MinIO or any S3 endpoint
 - Configurable upload and extracted-document size limits
 - Request IDs, optional Redis/Valkey-backed rate limiting with in-memory fallback, readiness checks, and document version restore
 - Lightweight `/metrics` and `/metrics.json` observability endpoints
@@ -30,7 +32,7 @@ A production-style full-stack knowledge base app with FastAPI, Next.js, MongoDB,
 - System status page for health, readiness, safety, and request metrics
 - RAG feedback review panel with filters for answer-quality tuning
 - Full activity timeline page with workspace, action, and entity filters
-- Docker Compose for frontend, backend, MongoDB, and Ollama
+- Docker Compose for frontend, backend, worker, MongoDB, Valkey, MinIO, Caddy, and Ollama
 
 ## Quick Start
 
@@ -68,6 +70,29 @@ Keep credentials out of Git and make sure the Atlas network access rules allow y
 
 Uploaded source files are retained under `FILE_STORAGE_DIR` and mounted as a Docker volume by default.
 Uploads default to `MAX_UPLOAD_SIZE_MB=25`, and extracted/note content defaults to `MAX_DOCUMENT_CHARS=200000`.
+
+For a separate analysis worker instead of in-process FastAPI background tasks:
+
+```bash
+ANALYSIS_EXECUTION_MODE=worker
+docker compose --profile worker up -d --build
+```
+
+For S3-compatible upload storage with local MinIO:
+
+```bash
+STORAGE_BACKEND=s3
+S3_ENDPOINT_URL=http://minio:9000
+S3_BUCKET=knowledge-base-uploads
+docker compose --profile object-storage up -d --build
+```
+
+For reverse-proxy deployment with Caddy:
+
+```bash
+CADDY_SITE_ADDRESS=your-domain.example.com
+docker compose --profile proxy up -d --build
+```
 
 By default, the app uses local embeddings so there is no API bill:
 
@@ -213,8 +238,9 @@ Use `NEXT_PUBLIC_API_URL=http://localhost:8000/api/v1` for local frontend develo
 
 ## DevOps
 
-- Docker Compose includes healthchecks for MongoDB, Valkey, backend readiness, frontend availability, and Ollama.
-- Docker Compose includes persistent volumes for MongoDB data, Valkey rate limiting, uploaded files, Ollama models, and local Hugging Face/FastEmbed model cache.
+- Docker Compose includes healthchecks for MongoDB, Valkey, backend readiness, frontend availability, MinIO, and Ollama.
+- Docker Compose includes persistent volumes for MongoDB data, Valkey rate limiting, uploaded files, MinIO objects, Caddy certificates/config, Ollama models, and local Hugging Face/FastEmbed model cache.
+- Optional profiles enable a queued analysis worker, MinIO object storage, and Caddy reverse proxy without changing the default local stack.
 - PowerShell operations scripts provide Docker-based MongoDB/upload backup and restore.
 - Backend startup waits for MongoDB health before serving the API.
 - Frontend startup waits for backend readiness.
@@ -296,4 +322,4 @@ Operational endpoints:
 - Consider background jobs for AI analysis on very large documents.
 - Local model providers are free in API cost but run on your machine/container. Expect slower responses on CPU and larger Docker images after installing optional ML dependencies.
 - Set `EMBEDDING_PROVIDER=openai` only if you intentionally want paid hosted embeddings. Atlas Vector Search can be added later by replacing the repository ranking path with a MongoDB vector index query.
-- For cloud object storage, replace `FileStorageService` with S3, MinIO, or Azure Blob while preserving the stored metadata fields.
+- Use `STORAGE_BACKEND=s3` with MinIO or another S3-compatible endpoint when server disk is limited.

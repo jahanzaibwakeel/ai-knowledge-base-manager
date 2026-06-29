@@ -25,8 +25,17 @@ class Settings(BaseSettings):
     ollama_base_url: str = "http://localhost:11434"
     ollama_model: str = "llama3.1"
     file_storage_dir: str = "uploads"
+    storage_backend: str = "local"
+    s3_endpoint_url: str | None = None
+    s3_access_key_id: str | None = None
+    s3_secret_access_key: str | None = None
+    s3_bucket: str = "knowledge-base-uploads"
+    s3_region: str = "us-east-1"
+    s3_secure_urls: bool = False
     max_upload_size_mb: int = 25
     max_document_chars: int = 200_000
+    analysis_execution_mode: str = "background"
+    analysis_worker_poll_seconds: float = 2.0
     password_reset_token_minutes: int = 30
     return_password_reset_token: bool = True
     rate_limit_requests: int = 120

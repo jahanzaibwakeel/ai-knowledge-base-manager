@@ -54,12 +54,48 @@ docker compose run --rm backend python scripts/prefetch_models.py
 docker compose up -d
 ```
 
+Optional worker mode for AI/RAG analysis:
+
+```env
+ANALYSIS_EXECUTION_MODE=worker
+```
+
+```bash
+docker compose --profile worker up -d --build
+```
+
+Optional local object storage with MinIO:
+
+```env
+STORAGE_BACKEND=s3
+S3_ENDPOINT_URL=http://minio:9000
+S3_ACCESS_KEY_ID=replace-me
+S3_SECRET_ACCESS_KEY=replace-me
+S3_BUCKET=knowledge-base-uploads
+```
+
+```bash
+docker compose --profile object-storage up -d --build
+```
+
+Optional Caddy reverse proxy:
+
+```env
+CADDY_SITE_ADDRESS=your-domain.example.com
+```
+
+```bash
+docker compose --profile proxy up -d --build
+```
+
 ## Persistent Data
 
 Docker Compose defines persistent volumes for:
 
 - `mongo_data`: MongoDB data
 - `backend_uploads`: uploaded original files
+- `minio_data`: uploaded original files when `STORAGE_BACKEND=s3` is used with local MinIO
+- `caddy_data` and `caddy_config`: Caddy certificates and proxy state
 - `model_cache`: local Hugging Face/FastEmbed model cache
 - `ollama_data`: Ollama models if Ollama is enabled
 
@@ -83,10 +119,10 @@ Restore is destructive: it drops MongoDB collections and replaces uploaded files
 
 ## Production Notes
 
-- Put the frontend behind HTTPS.
+- Put the frontend behind HTTPS; the `proxy` profile provides a Caddy-based reverse proxy.
 - Restrict backend access to trusted origins.
 - Use MongoDB Atlas or a secured MongoDB server for production data.
-- Use external object storage for large uploaded files if server disk is limited.
+- Use MinIO or another S3-compatible object store for large uploaded files if server disk is limited.
 - Keep `OPENAI_API_KEY` empty for zero billing risk.
 - Keep `ZERO_COST_MODE=true` unless you intentionally want paid hosted AI calls.
 - Monitor disk usage for uploaded files and model cache.
