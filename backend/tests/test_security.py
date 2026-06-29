@@ -1,6 +1,13 @@
 import unittest
 
-from app.core.security import create_access_token, decode_access_token, hash_password, verify_password
+from app.core.security import (
+    create_access_token,
+    create_password_reset_token,
+    decode_access_token,
+    hash_password,
+    hash_reset_token,
+    verify_password,
+)
 
 
 class SecurityTests(unittest.TestCase):
@@ -21,6 +28,14 @@ class SecurityTests(unittest.TestCase):
 
     def test_invalid_jwt_returns_none(self):
         self.assertIsNone(decode_access_token("not-a-token"))
+
+    def test_password_reset_tokens_are_hashable_and_random(self):
+        first = create_password_reset_token()
+        second = create_password_reset_token()
+
+        self.assertNotEqual(first, second)
+        self.assertNotEqual(hash_reset_token(first), first)
+        self.assertEqual(hash_reset_token(first), hash_reset_token(first))
 
 
 if __name__ == "__main__":

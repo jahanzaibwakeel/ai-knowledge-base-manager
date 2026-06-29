@@ -60,8 +60,26 @@ const ragFeedback = {
   offset: 0
 };
 
+const activityPage = {
+  items: [
+    {
+      id: "activity-1",
+      workspace_id: "workspace-1",
+      actor_id: "user-1",
+      action: "created",
+      entity_type: "document",
+      entity_id: "doc-1",
+      message: "Created note MongoDB Atlas Notes",
+      created_at: new Date().toISOString()
+    }
+  ],
+  total: 1,
+  limit: 50,
+  offset: 0
+};
+
 test.beforeEach(async ({ page }) => {
-  await page.addInitScript(({ dashboard, ragFeedback }) => {
+  await page.addInitScript(({ dashboard, ragFeedback, activityPage }) => {
     localStorage.setItem("kbm_token", "test-token");
     const originalFetch = window.fetch.bind(window);
     window.fetch = async (input, init) => {
@@ -98,6 +116,11 @@ test.beforeEach(async ({ page }) => {
       }
       if (url.includes("/api/v1/dashboard/search")) return json({ items: dashboard.recent_documents, limit: 25, offset: 0 });
       if (url.includes("/api/v1/dashboard")) return json(dashboard);
+      if (url.includes("/api/v1/activity")) return json(activityPage);
+      if (url.includes("/api/v1/auth/password-reset/request")) {
+        return json({ message: "If the account exists, a password reset token has been created.", reset_token: "reset-token-1234567890" });
+      }
+      if (url.includes("/api/v1/auth/password-reset/confirm")) return json({ message: "Password has been reset." });
       if (url.endsWith("/api/v1/workspaces")) return json(dashboard.workspaces);
       if (url.includes("/api/v1/workspaces/workspace-1/members")) {
         return json([{ id: "member-1", workspace_id: "workspace-1", user_id: "user-1", email: "owner@example.com", name: "Owner", role: "owner" }]);
@@ -122,7 +145,7 @@ test.beforeEach(async ({ page }) => {
       if (url.includes("/api/v1/rag/feedback")) return json(ragFeedback);
       return originalFetch(input, init);
     };
-  }, { dashboard, ragFeedback });
+  }, { dashboard, ragFeedback, activityPage });
   await page.route("**/api/v1/**", (route) => {
     const url = route.request().url();
     const headers = {
@@ -138,6 +161,18 @@ test.beforeEach(async ({ page }) => {
     }
     if (url.endsWith("/dashboard")) {
       return route.fulfill({ headers, json: dashboard });
+    }
+    if (url.includes("/activity")) {
+      return route.fulfill({ headers, json: activityPage });
+    }
+    if (url.endsWith("/auth/password-reset/request")) {
+      return route.fulfill({
+        headers,
+        json: { message: "If the account exists, a password reset token has been created.", reset_token: "reset-token-1234567890" }
+      });
+    }
+    if (url.endsWith("/auth/password-reset/confirm")) {
+      return route.fulfill({ headers, json: { message: "Password has been reset." } });
     }
     if (url.endsWith("/workspaces")) {
       return route.fulfill({ headers, json: dashboard.workspaces });
@@ -221,4 +256,26 @@ test("dashboard renders documents, search, and RAG citations", async ({ page }) 
   await expect(page.getByRole("link", { name: /MongoDB Atlas Notes Atlas can/ })).toBeVisible();
   await page.getByRole("button", { name: "Helpful", exact: true }).click();
   await expect(page.getByText("Marked helpful")).toBeVisible();
+});
+
+test("activity timeline shows audited events", async ({ page }) => {
+  await page.goto("/activity");
+
+  await expect(page.getByRole("heading", { name: "Activity timeline" })).toBeVisible();
+  await expect(page.getByText("Created note MongoDB Atlas Notes")).toBeVisible();
+  await expect(page.getByText("created", { exact: true })).toBeVisible();
+  await expect(page.getByText("document", { exact: true })).toBeVisible();
+});
+
+test("password reset request and confirm flow works", async ({ page }) => {
+  await page.goto("/password-reset");
+
+  await page.getByLabel("Email").fill("owner@example.com");
+  await page.getByRole("button", { name: "Create reset token" }).click();
+  await expect(page.getByText("reset-token-1234567890")).toBeVisible();
+
+  await page.getByRole("link", { name: "Continue" }).click();
+  await page.getByLabel("New password").fill("new-password-123");
+  await page.getByRole("button", { name: "Reset password" }).click();
+  await expect(page.getByText("Password has been reset.")).toBeVisible();
 });

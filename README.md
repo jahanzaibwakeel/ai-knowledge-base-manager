@@ -5,6 +5,7 @@ A production-style full-stack knowledge base app with FastAPI, Next.js, MongoDB,
 ## Features
 
 - JWT registration and login
+- Password reset token flow for local/self-hosted deployments
 - Workspace and collection management
 - Create, edit, delete, and search notes/documents
 - Upload PDF, TXT, Markdown, and store extracted content in MongoDB
@@ -13,6 +14,7 @@ A production-style full-stack knowledge base app with FastAPI, Next.js, MongoDB,
 - RAG-style knowledge base Q&A with document chunk citations and page/paragraph references
 - Streaming RAG answers over Server-Sent Events
 - RAG answer feedback capture and review for retrieval quality evaluation
+- RAG evaluation endpoint for regression checks against expected answer terms and citation counts
 - Configurable embeddings: local ONNX/Hugging Face embeddings by default, deterministic local hash fallback, full Sentence Transformers optional, or OpenAI embeddings if enabled
 - Background AI/RAG analysis jobs with document status tracking
 - Workspace members with `owner`, `editor`, and `viewer` roles
@@ -26,6 +28,7 @@ A production-style full-stack knowledge base app with FastAPI, Next.js, MongoDB,
 - Responsive Next.js dashboard and document detail pages
 - System status page for health, readiness, safety, and request metrics
 - RAG feedback review panel with filters for answer-quality tuning
+- Full activity timeline page with workspace, action, and entity filters
 - Docker Compose for frontend, backend, MongoDB, and Ollama
 
 ## Quick Start
@@ -242,8 +245,11 @@ The backend uses a service/repository pattern: route handlers validate ownership
 
 - `POST /api/v1/auth/register`
 - `POST /api/v1/auth/login`
+- `POST /api/v1/auth/password-reset/request`
+- `POST /api/v1/auth/password-reset/confirm`
 - `GET /api/v1/dashboard`
 - `GET /api/v1/dashboard/search?q=...&limit=25&offset=0`
+- `GET /api/v1/activity?workspace_id=...&action=created&entity_type=document`
 - `POST /api/v1/workspaces`
 - `GET /api/v1/workspaces/{workspace_id}/documents?limit=25&offset=0&tag=...`
 - `GET /api/v1/workspaces/{workspace_id}/export`
@@ -261,6 +267,7 @@ The backend uses a service/repository pattern: route handlers validate ownership
 - `POST /api/v1/documents/{document_id}/versions/{version}/restore`
 - `POST /api/v1/rag/query`
 - `POST /api/v1/rag/query/stream`
+- `POST /api/v1/rag/evaluate`
 - `POST /api/v1/rag/feedback`
 - `GET /api/v1/rag/feedback?rating=not_helpful&limit=10`
 - `GET /api/v1/workspaces/{workspace_id}/members`
@@ -277,6 +284,7 @@ Operational endpoints:
 ## Production Notes
 
 - Replace `JWT_SECRET` with a long random value.
+- Set `RETURN_PASSWORD_RESET_TOKEN=false` when an email delivery service is added; the default is convenient for local/self-hosted zero-cost recovery.
 - Restrict CORS origins for deployed domains.
 - Use a distributed rate limiter such as Redis/Valkey for multi-instance deployments; the included limiter is process-local.
 - Run MongoDB with authentication and backups outside local development.

@@ -221,6 +221,61 @@ class ActivityRepository(MongoRepository):
         cursor = self.collection.find({"workspace_id": workspace_id}).sort("created_at", -1).limit(limit)
         return [serialize(doc) async for doc in cursor]
 
+    def _query(
+        self,
+        workspace_ids: list[str],
+        *,
+        workspace_id: str | None = None,
+        action: str | None = None,
+        entity_type: str | None = None,
+    ) -> dict:
+        query: dict = {"workspace_id": {"$in": workspace_ids}}
+        if workspace_id:
+            query["workspace_id"] = workspace_id
+        if action:
+            query["action"] = action
+        if entity_type:
+            query["entity_type"] = entity_type
+        return query
+
+    async def list_for_workspaces(
+        self,
+        workspace_ids: list[str],
+        *,
+        workspace_id: str | None = None,
+        action: str | None = None,
+        entity_type: str | None = None,
+        limit: int = 50,
+        skip: int = 0,
+    ) -> list[dict]:
+        if not workspace_ids:
+            return []
+        if workspace_id and workspace_id not in workspace_ids:
+            return []
+        cursor = (
+            self.collection.find(
+                self._query(workspace_ids, workspace_id=workspace_id, action=action, entity_type=entity_type)
+            )
+            .sort("created_at", -1)
+            .skip(skip)
+            .limit(limit)
+        )
+        return [serialize(doc) async for doc in cursor]
+
+    async def count_for_workspaces(
+        self,
+        workspace_ids: list[str],
+        *,
+        workspace_id: str | None = None,
+        action: str | None = None,
+        entity_type: str | None = None,
+    ) -> int:
+        if not workspace_ids or (workspace_id and workspace_id not in workspace_ids):
+            return 0
+        return await self.collection.count_documents(
+            self._query(workspace_ids, workspace_id=workspace_id, action=action, entity_type=entity_type)
+        )
+
 
 class AnalysisJobRepository(MongoRepository):
     def __init__(self, db: AsyncIOMotorDatabase):

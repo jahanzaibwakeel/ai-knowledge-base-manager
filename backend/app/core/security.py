@@ -1,4 +1,6 @@
 from datetime import datetime, timedelta, timezone
+from hashlib import sha256
+from secrets import token_urlsafe
 from typing import Any
 
 from jose import JWTError, jwt
@@ -15,6 +17,14 @@ def hash_password(password: str) -> str:
 
 def verify_password(password: str, hashed_password: str) -> bool:
     return pwd_context.verify(password, hashed_password)
+
+
+def create_password_reset_token() -> str:
+    return token_urlsafe(32)
+
+
+def hash_reset_token(token: str) -> str:
+    return sha256(token.encode("utf-8")).hexdigest()
 
 
 def create_access_token(subject: str, extra: dict[str, Any] | None = None) -> str:

@@ -1,10 +1,20 @@
+from datetime import timedelta
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app.api.deps import current_user, get_db
-from app.core.security import create_access_token, hash_password, verify_password
-from app.repositories.users import UserRepository
-from app.schemas.auth import LoginRequest, RegisterRequest, TokenResponse
+from app.core.config import get_settings
+from app.core.security import (
+    create_access_token,
+    create_password_reset_token,
+    hash_password,
+    hash_reset_token,
+    verify_password,
+)
+from app.models.common import now_utc
+from app.repositories.users import PasswordResetTokenRepository, UserRepository
+from app.schemas.auth import LoginRequest, PasswordResetConfirm, PasswordResetRequest, RegisterRequest, TokenResponse
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -31,6 +41,34 @@ async def login(payload: LoginRequest, db: AsyncIOMotorDatabase = Depends(get_db
     if not user or not verify_password(payload.password, user["password_hash"]):
         raise HTTPException(status_code=401, detail="Invalid email or password")
     return TokenResponse(access_token=create_access_token(user["id"]), user=public_user(user))
+
+
+@router.post("/password-reset/request")
+async def request_password_reset(payload: PasswordResetRequest, db: AsyncIOMotorDatabase = Depends(get_db)) -> dict:
+    settings = get_settings()
+    user = await UserRepository(db).get_by_email(payload.email)
+    response = {"message": "If the account exists, a password reset token has been created."}
+    if not user:
+        return response
+
+    token = create_password_reset_token()
+    expires_at = now_utc() + timedelta(minutes=settings.password_reset_token_minutes)
+    await PasswordResetTokenRepository(db).create_for_user(user["id"], hash_reset_token(token), expires_at)
+    if settings.return_password_reset_token:
+        response["reset_token"] = token
+        response["expires_in_minutes"] = settings.password_reset_token_minutes
+    return response
+
+
+@router.post("/password-reset/confirm")
+async def confirm_password_reset(payload: PasswordResetConfirm, db: AsyncIOMotorDatabase = Depends(get_db)) -> dict:
+    tokens = PasswordResetTokenRepository(db)
+    reset = await tokens.get_active(hash_reset_token(payload.token), now_utc())
+    if not reset:
+        raise HTTPException(status_code=400, detail="Invalid or expired password reset token")
+    await UserRepository(db).set_password(reset["user_id"], hash_password(payload.password))
+    await tokens.mark_used(reset["id"])
+    return {"message": "Password has been reset."}
 
 
 @router.get("/me")

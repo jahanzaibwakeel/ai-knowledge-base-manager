@@ -27,6 +27,9 @@ def get_database() -> AsyncIOMotorDatabase:
 
 async def create_indexes(db: AsyncIOMotorDatabase) -> None:
     await db.users.create_index("email", unique=True)
+    await db.password_reset_tokens.create_index("token_hash", unique=True)
+    await db.password_reset_tokens.create_index("expires_at", expireAfterSeconds=0)
+    await db.password_reset_tokens.create_index([("user_id", 1), ("used_at", 1)])
     await db.workspaces.create_index([("owner_id", 1), ("archived_at", 1), ("name", 1)])
     await db.workspace_members.create_index([("workspace_id", 1), ("user_id", 1)], unique=True)
     await db.workspace_members.create_index([("user_id", 1), ("role", 1)])

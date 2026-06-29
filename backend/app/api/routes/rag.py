@@ -11,6 +11,7 @@ from pydantic import BaseModel, Field
 from app.api.deps import current_user, get_db
 from app.api.routes.workspaces import accessible_workspaces
 from app.repositories.domain import RAGFeedbackRepository
+from app.services.rag_eval import evaluate_rag_answer
 from app.services.rag import RAGService
 
 router = APIRouter(prefix="/rag", tags=["rag"])
@@ -33,6 +34,13 @@ class RAGFeedbackListQuery(BaseModel):
     rating: str | None = Field(default=None, pattern="^(helpful|not_helpful)$")
     limit: int = Field(default=25, ge=1, le=100)
     offset: int = Field(default=0, ge=0)
+
+
+class RAGEvaluationRequest(BaseModel):
+    query: str = Field(min_length=2, max_length=500)
+    expected_terms: list[str] = Field(min_length=1, max_length=25)
+    min_citations: int = Field(default=1, ge=0, le=10)
+    limit: int = Field(default=5, ge=1, le=10)
 
 
 @router.post("/query")
@@ -131,3 +139,19 @@ async def list_rag_feedback(
         "limit": query.limit,
         "offset": query.offset,
     }
+
+
+@router.post("/evaluate")
+async def evaluate_rag_query(
+    payload: RAGEvaluationRequest,
+    user: dict = Depends(current_user),
+    db: AsyncIOMotorDatabase = Depends(get_db),
+) -> dict:
+    result = await RAGService(db).ask(user["id"], payload.query, payload.limit)
+    evaluation = evaluate_rag_answer(
+        result["answer"],
+        result["citations"],
+        payload.expected_terms,
+        payload.min_citations,
+    )
+    return {"query": payload.query, "answer": result["answer"], "citations": result["citations"], "evaluation": evaluation}

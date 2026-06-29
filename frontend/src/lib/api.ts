@@ -1,4 +1,4 @@
-import { AnalysisJob, Dashboard, DocumentItem, DocumentVersion, MetricsStatus, Paginated, RAGAnswer, RAGFeedbackItem, SafetyStatus, User, Workspace, WorkspaceMember } from "./types";
+import { ActivityItem, AnalysisJob, Dashboard, DocumentItem, DocumentVersion, MetricsStatus, Paginated, RAGAnswer, RAGFeedbackItem, SafetyStatus, User, Workspace, WorkspaceMember } from "./types";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
 const ROOT_API_URL = API_URL.replace(/\/api\/v1\/?$/, "");
@@ -109,8 +109,25 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ name, email, password })
     }),
+  requestPasswordReset: (email: string) =>
+    request<{ message: string; reset_token?: string; expires_in_minutes?: number }>("/auth/password-reset/request", {
+      method: "POST",
+      body: JSON.stringify({ email })
+    }),
+  confirmPasswordReset: (token: string, password: string) =>
+    request<{ message: string }>("/auth/password-reset/confirm", {
+      method: "POST",
+      body: JSON.stringify({ token, password })
+    }),
   me: () => request<User>("/auth/me"),
   dashboard: () => request<Dashboard>("/dashboard"),
+  activity: (filters: { workspace_id?: string; action?: string; entity_type?: string } = {}) => {
+    const params = new URLSearchParams({ limit: "50" });
+    Object.entries(filters).forEach(([key, value]) => {
+      if (value) params.set(key, value);
+    });
+    return request<Paginated<ActivityItem>>(`/activity?${params.toString()}`);
+  },
   workspaces: () => request<Workspace[]>("/workspaces"),
   createWorkspace: (name: string, description: string) =>
     request<Workspace>("/workspaces", { method: "POST", body: JSON.stringify({ name, description }) }),
@@ -145,6 +162,8 @@ export const api = {
     request<Paginated<DocumentItem>>(`/workspaces/${workspaceId}/documents?include_archived=${includeArchived}`),
   ask: (query: string, limit = 5) =>
     request<RAGAnswer>("/rag/query", { method: "POST", body: JSON.stringify({ query, limit }) }),
+  evaluateRag: (payload: { query: string; expected_terms: string[]; min_citations?: number; limit?: number }) =>
+    request("/rag/evaluate", { method: "POST", body: JSON.stringify(payload) }),
   askStream: (query: string, handlers: RAGStreamHandlers, limit = 5) =>
     streamRequest("/rag/query/stream", { query, limit }, handlers),
   sendRagFeedback: (payload: { query: string; answer: string; rating: "helpful" | "not_helpful"; comment?: string; citations: RAGAnswer["citations"] }) =>

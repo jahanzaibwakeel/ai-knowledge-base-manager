@@ -59,6 +59,17 @@ export type Dashboard = {
   rag_feedback?: { helpful: number; not_helpful: number; total: number };
 };
 
+export type ActivityItem = {
+  id: string;
+  workspace_id: string;
+  actor_id: string;
+  action: string;
+  entity_type: string;
+  entity_id?: string | null;
+  message: string;
+  created_at: string;
+};
+
 export type RAGAnswer = {
   answer: string;
   citations: Array<{

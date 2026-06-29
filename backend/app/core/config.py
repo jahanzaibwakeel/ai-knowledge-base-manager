@@ -27,6 +27,8 @@ class Settings(BaseSettings):
     file_storage_dir: str = "uploads"
     max_upload_size_mb: int = 25
     max_document_chars: int = 200_000
+    password_reset_token_minutes: int = 30
+    return_password_reset_token: bool = True
     rate_limit_requests: int = 120
     rate_limit_window_seconds: int = 60
     cors_origins: list[str] = ["http://localhost:3000", "http://127.0.0.1:3000"]

@@ -4,7 +4,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, PlainTextResponse
 
-from app.api.routes import auth, collections, dashboard, documents, rag, workspaces
+from app.api.routes import activity, auth, collections, dashboard, documents, rag, workspaces
 from app.core.config import get_settings
 from app.core.metrics import request_metrics
 from app.core.middleware import InMemoryRateLimitMiddleware, RequestContextMiddleware
@@ -69,3 +69,4 @@ app.include_router(collections.router, prefix=settings.api_prefix)
 app.include_router(documents.router, prefix=settings.api_prefix)
 app.include_router(dashboard.router, prefix=settings.api_prefix)
 app.include_router(rag.router, prefix=settings.api_prefix)
+app.include_router(activity.router, prefix=settings.api_prefix)

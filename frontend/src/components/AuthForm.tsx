@@ -60,6 +60,11 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
             {mode === "login" ? "Register" : "Log in"}
           </Link>
         </p>
+        {mode === "login" && (
+          <Link className="mt-3 block text-center text-sm font-semibold text-moss" href="/password-reset">
+            Forgot password?
+          </Link>
+        )}
       </form>
     </div>
   );
